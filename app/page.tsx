@@ -27,7 +27,7 @@ export default async function Page({
     years = (yearsData.collection ?? []).map(
       (y: { year: string }) => y.year
     );
-    selectedYear = params.year ?? years[0] ?? "";
+    selectedYear = params.year ?? years[years.length - 1] ?? "";
 
     const [totalsData, accountsData] = await Promise.all([
       selectedYear ? fetchYearTotals(selectedYear) : Promise.resolve({ collection: [] }),
