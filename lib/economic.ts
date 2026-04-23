@@ -8,29 +8,29 @@ function getHeaders() {
   };
 }
 
-export async function fetchAccounts() {
-  const res = await fetch(`${BASE_URL}/accounts?pagesize=1000`, {
+async function apiFetch(url: string) {
+  const res = await fetch(url, {
     headers: getHeaders(),
     next: { revalidate: 300 },
   });
-  if (!res.ok) throw new Error(`e-conomic API fejl: ${res.status}`);
+
+  if (res.status === 401) throw new Error("Ugyldig API token (401) — tjek dine tokens i Hostinger");
+  if (res.status === 404) return { collection: [] };
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`e-conomic API fejl: ${res.status} ${body}`);
+  }
   return res.json();
+}
+
+export async function fetchAccounts() {
+  return apiFetch(`${BASE_URL}/accounts?pagesize=1000`);
 }
 
 export async function fetchAccountingYears() {
-  const res = await fetch(`${BASE_URL}/accounting-years`, {
-    headers: getHeaders(),
-    next: { revalidate: 300 },
-  });
-  if (!res.ok) throw new Error(`e-conomic API fejl: ${res.status}`);
-  return res.json();
+  return apiFetch(`${BASE_URL}/accounting-years`);
 }
 
 export async function fetchYearTotals(year: string) {
-  const res = await fetch(`${BASE_URL}/accounting-years/${year}/totals`, {
-    headers: getHeaders(),
-    next: { revalidate: 300 },
-  });
-  if (!res.ok) throw new Error(`e-conomic API fejl: ${res.status}`);
-  return res.json();
+  return apiFetch(`${BASE_URL}/accounting-years/${year}/totals`);
 }
