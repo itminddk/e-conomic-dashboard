@@ -33,3 +33,11 @@ export async function fetchAccountingYears() {
 export async function fetchYearTotals(year: string) {
   return apiFetch(`${BASE_URL}/accounting-years/${year}/totals?pagesize=1000`);
 }
+
+export async function fetchPeriods(year: string) {
+  return apiFetch(`${BASE_URL}/accounting-years/${year}/periods`);
+}
+
+export async function fetchPeriodTotals(year: string, periodNumber: string) {
+  return apiFetch(`${BASE_URL}/accounting-years/${year}/periods/${periodNumber}/totals?pagesize=1000`);
+}

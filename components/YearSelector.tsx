@@ -16,6 +16,7 @@ export default function YearSelector({
   function onChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("year", e.target.value);
+    params.delete("period");
     router.push(`${pathname}?${params.toString()}`);
   }
 

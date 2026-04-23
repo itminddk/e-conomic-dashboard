@@ -1,10 +1,12 @@
-import { fetchAccountingYears, fetchYearTotals, fetchAccounts } from "@/lib/economic";
+import { fetchAccountingYears, fetchYearTotals, fetchAccounts, fetchPeriods, fetchPeriodTotals } from "@/lib/economic";
 import AccountsTable from "@/components/AccountsTable";
 import SummaryCards from "@/components/SummaryCards";
 import YearSelector from "@/components/YearSelector";
+import PeriodSelector from "@/components/PeriodSelector";
 
 interface SearchParams {
   year?: string;
+  period?: string;
 }
 
 export default async function Page({
@@ -17,6 +19,9 @@ export default async function Page({
   let years: string[] = [];
   let selectedYear = "";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let periods: any[] = [];
+  let selectedPeriod = params.period ?? "";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let totals: any[] = [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let accounts: any[] = [];
@@ -24,16 +29,20 @@ export default async function Page({
 
   try {
     const yearsData = await fetchAccountingYears();
-    years = (yearsData.collection ?? []).map(
-      (y: { year: string }) => y.year
-    );
+    years = (yearsData.collection ?? []).map((y: { year: string }) => y.year);
     selectedYear = params.year ?? years[years.length - 1] ?? "";
 
-    const [totalsData, accountsData] = await Promise.all([
-      selectedYear ? fetchYearTotals(selectedYear) : Promise.resolve({ collection: [] }),
+    const [periodsData, totalsData, accountsData] = await Promise.all([
+      selectedYear ? fetchPeriods(selectedYear) : Promise.resolve({ collection: [] }),
+      selectedYear && selectedPeriod
+        ? fetchPeriodTotals(selectedYear, selectedPeriod)
+        : selectedYear
+        ? fetchYearTotals(selectedYear)
+        : Promise.resolve({ collection: [] }),
       fetchAccounts(),
     ]);
 
+    periods = periodsData.collection ?? [];
     totals = totalsData.collection ?? [];
     accounts = accountsData.collection ?? [];
   } catch (err) {
@@ -55,7 +64,10 @@ export default async function Page({
           <h2 className="text-2xl font-bold">Regnskabsoverblik</h2>
           <p className="text-gray-500 text-sm mt-1">Data fra e-conomic</p>
         </div>
-        <YearSelector years={years} selectedYear={selectedYear} />
+        <div className="flex gap-2">
+          <YearSelector years={years} selectedYear={selectedYear} />
+          <PeriodSelector periods={periods} selectedPeriod={selectedPeriod} />
+        </div>
       </div>
 
       <SummaryCards accounts={accounts} totals={totals} />
