@@ -4,6 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "E-conomic Dashboard",
   description: "Overblik over regnskabstal fra e-conomic",
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
