@@ -6,6 +6,7 @@ export async function GET() {
     const data = await fetchAccountingYears();
     return NextResponse.json(data);
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    console.error("GET /api/accounting-years:", err);
+    return NextResponse.json({ error: "Intern serverfejl" }, { status: 500 });
   }
 }

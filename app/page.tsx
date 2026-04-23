@@ -1,8 +1,12 @@
 import { fetchAccountingYears, fetchYearTotals, fetchAccounts, fetchPeriods, fetchPeriodTotals } from "@/lib/economic";
+import type { Account, Total, Period } from "@/lib/types";
 import AccountsTable from "@/components/AccountsTable";
 import SummaryCards from "@/components/SummaryCards";
 import YearSelector from "@/components/YearSelector";
 import PeriodSelector from "@/components/PeriodSelector";
+
+const VALID_YEAR = /^\d{4}$/;
+const VALID_PERIOD = /^\d+$/;
 
 interface SearchParams {
   year?: string;
@@ -18,35 +22,42 @@ export default async function Page({
 
   let years: string[] = [];
   let selectedYear = "";
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let periods: any[] = [];
-  let selectedPeriod = params.period ?? "";
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let totals: any[] = [];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let accounts: any[] = [];
+  let periods: Period[] = [];
+  let selectedPeriod = "";
+  let totals: Total[] = [];
+  let accounts: Account[] = [];
   let error = "";
 
-  try {
-    const yearsData = await fetchAccountingYears();
-    years = (yearsData.collection ?? []).map((y: { year: string }) => y.year);
-    selectedYear = params.year ?? years[years.length - 1] ?? "";
+  const rawYear = params.year ?? "";
+  const rawPeriod = params.period ?? "";
 
-    const [periodsData, totalsData, accountsData] = await Promise.all([
-      selectedYear ? fetchPeriods(selectedYear) : Promise.resolve({ collection: [] }),
-      selectedYear && selectedPeriod
-        ? fetchPeriodTotals(selectedYear, selectedPeriod)
-        : selectedYear
-        ? fetchYearTotals(selectedYear)
-        : Promise.resolve({ collection: [] }),
-      fetchAccounts(),
-    ]);
+  if (rawYear && !VALID_YEAR.test(rawYear)) {
+    error = "Ugyldigt år i URL";
+  } else if (rawPeriod && !VALID_PERIOD.test(rawPeriod)) {
+    error = "Ugyldig periode i URL";
+  } else {
+    try {
+      const yearsData = await fetchAccountingYears();
+      years = yearsData.collection.map((y) => y.year);
+      selectedYear = rawYear || years[years.length - 1] || "";
+      selectedPeriod = rawPeriod;
 
-    periods = periodsData.collection ?? [];
-    totals = totalsData.collection ?? [];
-    accounts = accountsData.collection ?? [];
-  } catch (err) {
-    error = String(err);
+      const [periodsData, totalsData, accountsData] = await Promise.all([
+        selectedYear ? fetchPeriods(selectedYear) : Promise.resolve({ collection: [] as Period[] }),
+        selectedYear && selectedPeriod
+          ? fetchPeriodTotals(selectedYear, selectedPeriod)
+          : selectedYear
+          ? fetchYearTotals(selectedYear)
+          : Promise.resolve({ collection: [] as Total[] }),
+        fetchAccounts(),
+      ]);
+
+      periods = periodsData.collection;
+      totals = totalsData.collection;
+      accounts = accountsData.collection;
+    } catch (err) {
+      error = err instanceof Error ? err.message : "Ukendt fejl";
+    }
   }
 
   if (error) {

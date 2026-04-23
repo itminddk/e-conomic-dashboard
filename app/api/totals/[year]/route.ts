@@ -1,15 +1,21 @@
 import { NextResponse } from "next/server";
 import { fetchYearTotals } from "@/lib/economic";
 
+const VALID_YEAR = /^\d{4}$/;
+
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ year: string }> }
 ) {
   try {
     const { year } = await params;
+    if (!VALID_YEAR.test(year)) {
+      return NextResponse.json({ error: "Ugyldigt år" }, { status: 400 });
+    }
     const data = await fetchYearTotals(year);
     return NextResponse.json(data);
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    console.error("GET /api/totals/[year]:", err);
+    return NextResponse.json({ error: "Intern serverfejl" }, { status: 500 });
   }
 }

@@ -6,6 +6,7 @@ export async function GET() {
     const data = await fetchAccounts();
     return NextResponse.json(data);
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    console.error("GET /api/accounts:", err);
+    return NextResponse.json({ error: "Intern serverfejl" }, { status: 500 });
   }
 }

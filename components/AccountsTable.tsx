@@ -1,41 +1,15 @@
-interface Account {
-  accountNumber: number;
-  name: string;
-  accountType: string;
-  debitCredit: string;
-}
-
-interface Total {
-  totalInBaseCurrency: number;
-  account: { accountNumber: number };
-}
-
-function formatDKK(amount: number) {
-  return new Intl.NumberFormat("da-DK", {
-    style: "currency",
-    currency: "DKK",
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
+import type { Account, Total } from "@/lib/types";
+import { formatDKK } from "@/lib/formatting";
 
 const typeLabels: Record<string, string> = {
   profitAndLoss: "Resultat",
   status: "Balance",
-  heading: "Overskrift",
   sumInterval: "Sum",
   totalFrom: "Total",
 };
 
-export default function AccountsTable({
-  accounts,
-  totals,
-}: {
-  accounts: Account[];
-  totals: Total[];
-}) {
-  const totalsMap = new Map(
-    totals.map((t) => [t.account.accountNumber, t.totalInBaseCurrency])
-  );
+export default function AccountsTable({ accounts, totals }: { accounts: Account[]; totals: Total[] }) {
+  const totalsMap = new Map(totals.map((t) => [t.account.accountNumber, t.totalInBaseCurrency]));
 
   const rows = accounts
     .filter((a) => a.accountType !== "heading")
@@ -70,15 +44,9 @@ export default function AccountsTable({
               <tr key={row.accountNumber} className="hover:bg-gray-50">
                 <td className="px-5 py-3 font-mono text-gray-500">{row.accountNumber}</td>
                 <td className="px-5 py-3 font-medium">{row.name}</td>
-                <td className="px-5 py-3 text-gray-500">
-                  {typeLabels[row.accountType] ?? row.accountType}
-                </td>
-                <td
-                  className={`px-5 py-3 text-right tabular-nums font-medium ${
-                    row.total < 0 ? "text-red-600" : "text-gray-900"
-                  }`}
-                >
-                  {formatDKK(row.total)}
+                <td className="px-5 py-3 text-gray-500">{typeLabels[row.accountType] ?? row.accountType}</td>
+                <td className={`px-5 py-3 text-right tabular-nums font-medium ${row.total < 0 ? "text-red-600" : "text-gray-900"}`}>
+                  {formatDKK(row.total, 2)}
                 </td>
               </tr>
             ))}
