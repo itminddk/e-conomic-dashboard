@@ -58,7 +58,7 @@ export default async function Page({
         <YearSelector years={years} selectedYear={selectedYear} />
       </div>
 
-      <SummaryCards totals={totals} />
+      <SummaryCards accounts={accounts} totals={totals} />
       <AccountsTable accounts={accounts} totals={totals} />
     </div>
   );

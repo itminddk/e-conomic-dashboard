@@ -1,9 +1,12 @@
-interface Total {
+interface Account {
   accountNumber: number;
-  accountName: string;
-  closingBalance: number;
-  openingBalance: number;
-  accountType?: string;
+  accountType: string;
+  debitCredit: string;
+}
+
+interface Total {
+  totalInBaseCurrency: number;
+  account: { accountNumber: number };
 }
 
 function formatDKK(amount: number) {
@@ -15,26 +18,40 @@ function formatDKK(amount: number) {
   }).format(amount);
 }
 
-export default function SummaryCards({ totals }: { totals: Total[] }) {
-  const totalAssets = totals
-    .filter((t) => t.accountType === "status" && t.closingBalance > 0)
-    .reduce((sum, t) => sum + t.closingBalance, 0);
+export default function SummaryCards({
+  accounts,
+  totals,
+}: {
+  accounts: Account[];
+  totals: Total[];
+}) {
+  const accountsMap = new Map(accounts.map((a) => [a.accountNumber, a]));
 
-  const totalRevenue = totals
-    .filter((t) => t.accountType === "profitAndLoss" && t.closingBalance < 0)
-    .reduce((sum, t) => sum + Math.abs(t.closingBalance), 0);
+  let revenue = 0;
+  let expenses = 0;
+  let assets = 0;
 
-  const totalExpenses = totals
-    .filter((t) => t.accountType === "profitAndLoss" && t.closingBalance > 0)
-    .reduce((sum, t) => sum + t.closingBalance, 0);
+  for (const t of totals) {
+    const total = t.totalInBaseCurrency;
+    if (total === 0) continue;
+    const account = accountsMap.get(t.account.accountNumber);
+    if (!account) continue;
 
-  const result = totalRevenue - totalExpenses;
+    if (account.accountType === "profitAndLoss") {
+      if (account.debitCredit === "credit") revenue += Math.abs(total);
+      else expenses += Math.abs(total);
+    } else if (account.accountType === "status" && account.debitCredit === "debit") {
+      assets += total;
+    }
+  }
+
+  const result = revenue - expenses;
 
   const cards = [
-    { label: "Omsætning", value: totalRevenue, color: "text-green-600" },
-    { label: "Omkostninger", value: totalExpenses, color: "text-red-600" },
+    { label: "Omsætning", value: revenue, color: "text-green-600" },
+    { label: "Omkostninger", value: expenses, color: "text-red-600" },
     { label: "Resultat", value: result, color: result >= 0 ? "text-green-600" : "text-red-600" },
-    { label: "Aktiver", value: totalAssets, color: "text-blue-600" },
+    { label: "Aktiver", value: assets, color: "text-blue-600" },
   ];
 
   return (

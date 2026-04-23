@@ -13,7 +13,6 @@ async function apiFetch(url: string) {
     headers: getHeaders(),
     next: { revalidate: 300 },
   });
-
   if (res.status === 401) throw new Error("Ugyldig API token (401) — tjek dine tokens i Hostinger");
   if (res.status === 404) return { collection: [] };
   if (!res.ok) {
@@ -32,5 +31,5 @@ export async function fetchAccountingYears() {
 }
 
 export async function fetchYearTotals(year: string) {
-  return apiFetch(`${BASE_URL}/accounting-years/${year}/totals`);
+  return apiFetch(`${BASE_URL}/accounting-years/${year}/totals?pagesize=1000`);
 }
