@@ -1,7 +1,7 @@
 export interface Account {
   accountNumber: number;
   name: string;
-  accountType: "profitAndLoss" | "status" | "heading" | "sumInterval" | "totalFrom";
+  accountType: "profitAndLoss" | "status" | "heading" | "headingStart" | "sumInterval" | "totalFrom";
   debitCredit: "debit" | "credit";
   balance: number;
 }
