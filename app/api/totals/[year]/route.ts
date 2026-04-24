@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchYearTotals } from "@/lib/economic";
-
-const VALID_YEAR = /^\d{4}$/;
+import { VALID_YEAR } from "@/lib/validation";
 
 export async function GET(
   _req: Request,

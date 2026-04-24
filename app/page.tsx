@@ -1,12 +1,10 @@
 import { fetchAccountingYears, fetchYearTotals, fetchAccounts, fetchPeriods, fetchPeriodTotals } from "@/lib/economic";
 import type { Account, Total, Period } from "@/lib/types";
+import { VALID_YEAR, VALID_PERIOD } from "@/lib/validation";
 import AccountsTable from "@/components/AccountsTable";
 import SummaryCards from "@/components/SummaryCards";
 import YearSelector from "@/components/YearSelector";
 import PeriodSelector from "@/components/PeriodSelector";
-
-const VALID_YEAR = /^\d{4}$/;
-const VALID_PERIOD = /^\d+$/;
 
 interface SearchParams {
   year?: string;
