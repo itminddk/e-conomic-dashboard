@@ -1,20 +1,27 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { signToken, COOKIE } from "@/lib/auth";
+import pool from "@/lib/db";
 
 export async function POST(req: Request) {
   try {
-    const { password } = await req.json();
+    const { username, password } = await req.json();
 
-    if (typeof password !== "string" || password.length === 0) {
+    if (typeof username !== "string" || typeof password !== "string" ||
+        username.length === 0 || password.length === 0) {
       return NextResponse.json({ error: "Ugyldigt input" }, { status: 400 });
     }
 
-    const hash = process.env.AUTH_PASSWORD_HASH!;
-    const valid = await bcrypt.compare(password, hash);
+    const [rows] = await pool.execute(
+      "SELECT password_hash FROM users WHERE username = ? LIMIT 1",
+      [username]
+    ) as [{ password_hash: string }[], unknown];
+
+    const user = rows[0];
+    const valid = user ? await bcrypt.compare(password, user.password_hash) : false;
 
     if (!valid) {
-      return NextResponse.json({ error: "Forkert adgangskode" }, { status: 401 });
+      return NextResponse.json({ error: "Forkert brugernavn eller adgangskode" }, { status: 401 });
     }
 
     const token = await signToken();
@@ -27,7 +34,8 @@ export async function POST(req: Request) {
       path: "/",
     });
     return res;
-  } catch {
+  } catch (err) {
+    console.error("Login fejl:", err);
     return NextResponse.json({ error: "Intern serverfejl" }, { status: 500 });
   }
 }
