@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import LogoutButton from "@/components/LogoutButton";
+import { cookies } from "next/headers";
+import { verifyToken, COOKIE } from "@/lib/auth";
 
 export const metadata: Metadata = {
   title: "E-conomic Dashboard",
@@ -8,18 +10,24 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(COOKIE)?.value;
+  const isLoggedIn = token ? await verifyToken(token) : false;
+
   return (
     <html lang="da">
       <body className="bg-gray-50 text-gray-900 antialiased">
         <header className="bg-white border-b border-gray-200 px-6 py-4">
           <div className="max-w-6xl mx-auto flex items-center justify-between gap-3">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">E</span>
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-sm">E</span>
+              </div>
+              <h1 className="text-lg font-semibold">E-conomic Dashboard</h1>
             </div>
-            <h1 className="text-lg font-semibold">E-conomic Dashboard</h1>
+            {isLoggedIn && <LogoutButton />}
           </div>
-          <LogoutButton />
         </header>
         <main className="max-w-6xl mx-auto px-6 py-8">{children}</main>
       </body>
