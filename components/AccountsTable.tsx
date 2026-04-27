@@ -103,9 +103,7 @@ export default function AccountsTable({ accounts, totals }: { accounts: Account[
                   <tr key={row.accountNumber} className="bg-blue-50 border-t-2 border-blue-100">
                     <td className="px-5 py-2 text-xs text-gray-400 font-mono">{row.accountNumber}</td>
                     <td className="px-5 py-2 font-semibold text-gray-800">{row.name}</td>
-                    <td className={`px-5 py-2 text-right font-bold tabular-nums ${
-                      amount !== undefined && amount < 0 ? "text-red-600" : "text-gray-900"
-                    }`}>
+                    <td className="px-5 py-2 text-right font-bold tabular-nums text-gray-900">
                       {amount !== undefined ? formatDKK(amount, 2) : ""}
                     </td>
                   </tr>
@@ -116,9 +114,7 @@ export default function AccountsTable({ accounts, totals }: { accounts: Account[
                 <tr key={row.accountNumber} className="hover:bg-gray-50">
                   <td className="px-5 py-2 font-mono text-gray-400 text-xs">{row.accountNumber}</td>
                   <td className="px-5 py-2 pl-8 text-gray-700">{row.name}</td>
-                  <td className={`px-5 py-2 text-right tabular-nums ${
-                    amount !== undefined && amount < 0 ? "text-red-600" : "text-gray-700"
-                  }`}>
+                  <td className="px-5 py-2 text-right tabular-nums text-gray-700">
                     {amount !== undefined && amount !== 0 ? formatDKK(amount, 2) : ""}
                   </td>
                 </tr>
