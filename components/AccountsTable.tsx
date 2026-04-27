@@ -12,7 +12,7 @@ export default function AccountsTable({ accounts, totals }: { accounts: Account[
   const rows = accounts.filter((a) => {
     if (IS_HEADING.has(a.accountType)) return true;
     if (IS_TOTAL.has(a.accountType)) return true;
-    return (totalsMap.get(a.accountNumber) ?? 0) !== 0;
+    return (totalsMap.get(a.accountNumber) ?? 0) !== 0;  // filter uses raw value
   });
 
   if (rows.length === 0) {
@@ -39,7 +39,8 @@ export default function AccountsTable({ accounts, totals }: { accounts: Account[
           </thead>
           <tbody className="divide-y divide-gray-100">
             {rows.map((row) => {
-              const amount = totalsMap.get(row.accountNumber);
+              const raw = totalsMap.get(row.accountNumber);
+              const amount = raw !== undefined ? -raw : undefined;
 
               if (IS_HEADING.has(row.accountType)) {
                 return (

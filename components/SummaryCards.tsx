@@ -4,11 +4,13 @@ import { computePLSummary } from "@/lib/computeTotals";
 
 export default function SummaryCards({ accounts, totals }: { accounts: Account[]; totals: Total[] }) {
   const { revenue, expenses, result } = computePLSummary(accounts, totals);
+  // Negate result: in e-conomic credit convention, negative grand total = profit
+  const displayResult = -result;
 
   const cards = [
     { label: "Omsætning", value: revenue, color: "text-gray-900" },
     { label: "Omkostninger", value: expenses, color: "text-gray-900" },
-    { label: "Resultat", value: result, color: result >= 0 ? "text-green-600" : "text-red-600" },
+    { label: "Resultat", value: displayResult, color: displayResult >= 0 ? "text-green-600" : "text-red-600" },
   ];
 
   return (
