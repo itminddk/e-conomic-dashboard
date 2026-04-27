@@ -4,8 +4,55 @@ import { formatDKK } from "@/lib/formatting";
 const IS_HEADING = new Set(["heading", "headingStart"]);
 const IS_TOTAL = new Set(["totalFrom", "sumInterval"]);
 
+// e-conomic returns 0 for all totalFrom/sumInterval accounts.
+// We calculate them from the underlying profitAndLoss/status accounts.
+//
+// Two patterns exist in the account plan:
+//   Sub-group total: a totalFrom that follows regular accounts → sums those accounts
+//   Grand total:     a totalFrom that follows another totalFrom → sums all preceding sub-group totals
+function buildTotalsMap(accounts: Account[], apiTotals: Map<number, number>): Map<number, number> {
+  const result = new Map(apiTotals);
+  let sectionSum = 0;     // regular accounts since last heading/totalFrom
+  let cumulativeSum = 0;  // sub-group totals accumulated for grand total
+  let hasDirectAccounts = false;
+
+  for (const acc of accounts) {
+    switch (acc.accountType) {
+      case "headingStart":
+        sectionSum = 0;
+        cumulativeSum = 0;
+        hasDirectAccounts = false;
+        break;
+      case "heading":
+        break;
+      case "profitAndLoss":
+      case "status":
+        sectionSum += apiTotals.get(acc.accountNumber) ?? 0;
+        hasDirectAccounts = true;
+        break;
+      case "totalFrom":
+      case "sumInterval": {
+        let value: number;
+        if (hasDirectAccounts) {
+          value = sectionSum;
+          cumulativeSum += value;
+        } else {
+          value = cumulativeSum;
+          cumulativeSum = value; // grand total becomes baseline for next
+        }
+        result.set(acc.accountNumber, value);
+        sectionSum = 0;
+        hasDirectAccounts = false;
+        break;
+      }
+    }
+  }
+  return result;
+}
+
 export default function AccountsTable({ accounts, totals }: { accounts: Account[]; totals: Total[] }) {
-  const totalsMap = new Map(totals.map((t) => [t.account.accountNumber, t.totalInBaseCurrency]));
+  const apiMap = new Map(totals.map((t) => [t.account.accountNumber, t.totalInBaseCurrency]));
+  const totalsMap = buildTotalsMap(accounts, apiMap);
 
   // Keep headings always, totals always, regular accounts only if non-zero
   const rows = accounts.filter((a) => {
