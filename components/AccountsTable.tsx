@@ -32,9 +32,9 @@ export default function AccountsTable({ accounts, totals }: { accounts: Account[
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
             <tr>
-              <th className="px-5 py-3 text-left w-24">Kontonr.</th>
-              <th className="px-5 py-3 text-left">Navn</th>
-              <th className="px-5 py-3 text-right w-40">Beløb</th>
+              <th className="px-3 py-2 sm:px-5 sm:py-3 text-left w-16 sm:w-24">Kontonr.</th>
+              <th className="px-3 py-2 sm:px-5 sm:py-3 text-left">Navn</th>
+              <th className="px-3 py-2 sm:px-5 sm:py-3 text-right w-28 sm:w-40">Beløb</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -45,8 +45,8 @@ export default function AccountsTable({ accounts, totals }: { accounts: Account[
               if (IS_HEADING.has(row.accountType)) {
                 return (
                   <tr key={row.accountNumber} className="bg-gray-50">
-                    <td className="px-5 py-2 text-xs text-gray-400 font-mono">{row.accountNumber}</td>
-                    <td className="px-5 py-2 font-semibold text-gray-700 uppercase text-xs tracking-wide" colSpan={2}>
+                    <td className="px-3 py-1.5 sm:px-5 sm:py-2 text-xs text-gray-400 font-mono">{row.accountNumber}</td>
+                    <td className="px-3 py-1.5 sm:px-5 sm:py-2 font-semibold text-gray-700 uppercase text-xs tracking-wide" colSpan={2}>
                       {row.name}
                     </td>
                   </tr>
@@ -56,9 +56,9 @@ export default function AccountsTable({ accounts, totals }: { accounts: Account[
               if (IS_TOTAL.has(row.accountType)) {
                 return (
                   <tr key={row.accountNumber} className="bg-blue-50 border-t-2 border-blue-100">
-                    <td className="px-5 py-2 text-xs text-gray-400 font-mono">{row.accountNumber}</td>
-                    <td className="px-5 py-2 font-semibold text-gray-800">{row.name}</td>
-                    <td className="px-5 py-2 text-right font-bold tabular-nums text-gray-900">
+                    <td className="px-3 py-1.5 sm:px-5 sm:py-2 text-xs text-gray-400 font-mono">{row.accountNumber}</td>
+                    <td className="px-3 py-1.5 sm:px-5 sm:py-2 font-semibold text-gray-800 text-xs sm:text-sm">{row.name}</td>
+                    <td className="px-3 py-1.5 sm:px-5 sm:py-2 text-right font-bold tabular-nums text-gray-900 text-xs sm:text-sm">
                       {amount !== undefined ? formatDKK(amount, 2) : ""}
                     </td>
                   </tr>
@@ -67,9 +67,9 @@ export default function AccountsTable({ accounts, totals }: { accounts: Account[
 
               return (
                 <tr key={row.accountNumber} className="hover:bg-gray-50">
-                  <td className="px-5 py-2 font-mono text-gray-400 text-xs">{row.accountNumber}</td>
-                  <td className="px-5 py-2 pl-8 text-gray-700">{row.name}</td>
-                  <td className="px-5 py-2 text-right tabular-nums text-gray-700">
+                  <td className="px-3 py-1.5 sm:px-5 sm:py-2 font-mono text-gray-400 text-xs">{row.accountNumber}</td>
+                  <td className="px-3 py-1.5 sm:px-5 sm:py-2 sm:pl-8 text-gray-700 text-xs sm:text-sm">{row.name}</td>
+                  <td className="px-3 py-1.5 sm:px-5 sm:py-2 text-right tabular-nums text-gray-700 text-xs sm:text-sm">
                     {amount !== undefined && amount !== 0 ? formatDKK(amount, 2) : ""}
                   </td>
                 </tr>

@@ -14,7 +14,7 @@ export default function SummaryCards({ accounts, totals }: { accounts: Account[]
   ];
 
   return (
-    <div className="grid grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
       {cards.map((card) => (
         <div key={card.label} className="bg-white rounded-xl border border-gray-200 p-5">
           <p className="text-sm text-gray-500">{card.label}</p>

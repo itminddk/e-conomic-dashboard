@@ -81,10 +81,10 @@ export default async function Page({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Regnskabsoverblik</h2>
-          <p className="text-gray-500 text-sm mt-1">Data fra e-conomic</p>
+          <h2 className="text-xl sm:text-2xl font-bold">Regnskabsoverblik</h2>
+          <p className="text-gray-500 text-sm mt-0.5">Data fra e-conomic</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           <YearSelector years={years} selectedYear={selectedYear} />
