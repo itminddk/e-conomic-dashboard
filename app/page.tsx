@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { fetchAccountingYears, fetchYearTotals, fetchAccounts, fetchPeriods, fetchPeriodTotals, fetchDepartments } from "@/lib/economic";
 import type { Account, Total, Period, Department } from "@/lib/types";
 import AccountsTable from "@/components/AccountsTable";

@@ -10,10 +10,10 @@ function getHeaders() {
   };
 }
 
-async function apiFetch(url: string) {
+async function apiFetch(url: string, cache: RequestCache = "no-store") {
   const res = await fetch(url, {
     headers: getHeaders(),
-    next: { revalidate: 300 },
+    cache,
   });
   if (res.status === 401) throw new Error("Ugyldig API token — tjek environment variables");
   if (res.status === 404) return { collection: [] };
@@ -26,15 +26,15 @@ async function apiFetch(url: string) {
 }
 
 export async function fetchAccounts(): Promise<{ collection: Account[] }> {
-  return apiFetch(`${BASE_URL}/accounts?pagesize=1000`);
+  return apiFetch(`${BASE_URL}/accounts?pagesize=1000`, "force-cache");
 }
 
 export async function fetchAccountingYears(): Promise<{ collection: AccountingYear[] }> {
-  return apiFetch(`${BASE_URL}/accounting-years`);
+  return apiFetch(`${BASE_URL}/accounting-years`, "force-cache");
 }
 
 export async function fetchDepartments(): Promise<{ collection: Department[] }> {
-  return apiFetch(`${BASE_URL}/departments`);
+  return apiFetch(`${BASE_URL}/departments`, "force-cache");
 }
 
 export async function fetchYearTotals(year: string, departmentNumber?: string): Promise<{ collection: Total[] }> {
