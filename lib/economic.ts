@@ -1,4 +1,4 @@
-import type { Account, Total, Period, AccountingYear } from "@/lib/types";
+import type { Account, Total, Period, AccountingYear, Department } from "@/lib/types";
 
 const BASE_URL = "https://restapi.e-conomic.com";
 
@@ -33,14 +33,20 @@ export async function fetchAccountingYears(): Promise<{ collection: AccountingYe
   return apiFetch(`${BASE_URL}/accounting-years`);
 }
 
-export async function fetchYearTotals(year: string): Promise<{ collection: Total[] }> {
-  return apiFetch(`${BASE_URL}/accounting-years/${year}/totals?pagesize=1000`);
+export async function fetchDepartments(): Promise<{ collection: Department[] }> {
+  return apiFetch(`${BASE_URL}/departments`);
+}
+
+export async function fetchYearTotals(year: string, departmentNumber?: string): Promise<{ collection: Total[] }> {
+  const dept = departmentNumber ? `&departmentNumber=${departmentNumber}` : "";
+  return apiFetch(`${BASE_URL}/accounting-years/${year}/totals?pagesize=1000${dept}`);
 }
 
 export async function fetchPeriods(year: string): Promise<{ collection: Period[] }> {
   return apiFetch(`${BASE_URL}/accounting-years/${year}/periods`);
 }
 
-export async function fetchPeriodTotals(year: string, periodNumber: string): Promise<{ collection: Total[] }> {
-  return apiFetch(`${BASE_URL}/accounting-years/${year}/periods/${periodNumber}/totals?pagesize=1000`);
+export async function fetchPeriodTotals(year: string, periodNumber: string, departmentNumber?: string): Promise<{ collection: Total[] }> {
+  const dept = departmentNumber ? `&departmentNumber=${departmentNumber}` : "";
+  return apiFetch(`${BASE_URL}/accounting-years/${year}/periods/${periodNumber}/totals?pagesize=1000${dept}`);
 }

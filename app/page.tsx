@@ -1,16 +1,19 @@
-import { fetchAccountingYears, fetchYearTotals, fetchAccounts, fetchPeriods, fetchPeriodTotals } from "@/lib/economic";
-import type { Account, Total, Period } from "@/lib/types";
+import { fetchAccountingYears, fetchYearTotals, fetchAccounts, fetchPeriods, fetchPeriodTotals, fetchDepartments } from "@/lib/economic";
+import type { Account, Total, Period, Department } from "@/lib/types";
 import AccountsTable from "@/components/AccountsTable";
 import SummaryCards from "@/components/SummaryCards";
 import YearSelector from "@/components/YearSelector";
 import PeriodSelector from "@/components/PeriodSelector";
+import DepartmentSelector from "@/components/DepartmentSelector";
 
 const VALID_YEAR = /^\d{4}$/;
 const VALID_PERIOD = /^\d+$/;
+const VALID_DEPT = /^\d+$/;
 
 interface SearchParams {
   year?: string;
   period?: string;
+  department?: string;
 }
 
 export default async function Page({
@@ -24,37 +27,45 @@ export default async function Page({
   let selectedYear = "";
   let periods: Period[] = [];
   let selectedPeriod = "";
+  let departments: Department[] = [];
+  let selectedDepartment = "";
   let totals: Total[] = [];
   let accounts: Account[] = [];
   let error = "";
 
   const rawYear = params.year ?? "";
   const rawPeriod = params.period ?? "";
+  const rawDept = params.department ?? "";
 
   if (rawYear && !VALID_YEAR.test(rawYear)) {
     error = "Ugyldigt år i URL";
   } else if (rawPeriod && !VALID_PERIOD.test(rawPeriod)) {
     error = "Ugyldig periode i URL";
+  } else if (rawDept && !VALID_DEPT.test(rawDept)) {
+    error = "Ugyldig afdeling i URL";
   } else {
     try {
       const yearsData = await fetchAccountingYears();
       years = yearsData.collection.map((y) => y.year);
       selectedYear = rawYear || years[years.length - 1] || "";
       selectedPeriod = rawPeriod;
+      selectedDepartment = rawDept;
 
-      const [periodsData, totalsData, accountsData] = await Promise.all([
+      const [periodsData, totalsData, accountsData, departmentsData] = await Promise.all([
         selectedYear ? fetchPeriods(selectedYear) : Promise.resolve({ collection: [] as Period[] }),
         selectedYear && selectedPeriod
-          ? fetchPeriodTotals(selectedYear, selectedPeriod)
+          ? fetchPeriodTotals(selectedYear, selectedPeriod, selectedDepartment || undefined)
           : selectedYear
-          ? fetchYearTotals(selectedYear)
+          ? fetchYearTotals(selectedYear, selectedDepartment || undefined)
           : Promise.resolve({ collection: [] as Total[] }),
         fetchAccounts(),
+        fetchDepartments(),
       ]);
 
       periods = periodsData.collection;
       totals = totalsData.collection;
       accounts = accountsData.collection;
+      departments = departmentsData.collection.filter((d) => !d.barred);
     } catch (err) {
       error = err instanceof Error ? err.message : "Ukendt fejl";
     }
@@ -75,9 +86,10 @@ export default async function Page({
           <h2 className="text-2xl font-bold">Regnskabsoverblik</h2>
           <p className="text-gray-500 text-sm mt-1">Data fra e-conomic</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <YearSelector years={years} selectedYear={selectedYear} />
           <PeriodSelector periods={periods} selectedPeriod={selectedPeriod} />
+          <DepartmentSelector departments={departments} selectedDepartment={selectedDepartment} />
         </div>
       </div>
 

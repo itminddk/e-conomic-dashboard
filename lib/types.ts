@@ -20,6 +20,12 @@ export interface Period {
   barred?: boolean;
 }
 
+export interface Department {
+  departmentNumber: number;
+  name: string;
+  barred?: boolean;
+}
+
 export interface AccountingYear {
   year: string;
   fromDate: string;
