@@ -19,6 +19,7 @@ export default function DepartmentSelector({
     if (e.target.value === "") p.delete("department");
     else p.set("department", e.target.value);
     router.push(`${pathname}?${p.toString()}`);
+    router.refresh();
   }
 
   return (

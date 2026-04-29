@@ -14,6 +14,7 @@ export default function PeriodSelector({ periods, selectedPeriod }: { periods: P
     if (e.target.value === "") p.delete("period");
     else p.set("period", e.target.value);
     router.push(`${pathname}?${p.toString()}`);
+    router.refresh();
   }
 
   return (

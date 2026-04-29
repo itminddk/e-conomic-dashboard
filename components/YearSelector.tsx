@@ -18,6 +18,7 @@ export default function YearSelector({
     params.set("year", e.target.value);
     params.delete("period");
     router.push(`${pathname}?${params.toString()}`);
+    router.refresh();
   }
 
   return (
