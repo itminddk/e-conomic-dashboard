@@ -7,6 +7,7 @@ import SummaryCards from "@/components/SummaryCards";
 import YearSelector from "@/components/YearSelector";
 import PeriodSelector from "@/components/PeriodSelector";
 import DepartmentSelector from "@/components/DepartmentSelector";
+import RefreshButton from "@/components/RefreshButton";
 
 const VALID_YEAR = /^\d{4}$/;
 const VALID_PERIOD = /^\d+$/;
@@ -88,10 +89,11 @@ export default async function Page({
           <h2 className="text-xl sm:text-2xl font-bold">Regnskabsoverblik</h2>
           <p className="text-gray-500 text-sm mt-0.5">Data fra e-conomic</p>
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
           <YearSelector years={years} selectedYear={selectedYear} />
           <PeriodSelector periods={periods} selectedPeriod={selectedPeriod} />
           <DepartmentSelector departments={departments} selectedDepartment={selectedDepartment} />
+          <RefreshButton />
         </div>
       </div>
 
