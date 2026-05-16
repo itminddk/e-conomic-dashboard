@@ -142,6 +142,34 @@ td.td-links{font-size:.75rem;color:var(--muted);text-align:center}
 .loading-spinner{width:28px;height:28px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 1rem}
 @keyframes spin{to{transform:rotate(360deg)}}
 
+/* ── SEO Analyse ─────────────────────── */
+.seo-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:.75rem;margin-bottom:1.5rem}
+.seo-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1rem 1.2rem;text-align:center}
+.seo-card-val{font-size:1.6rem;font-weight:700;line-height:1}
+.seo-card-lbl{font-size:.72rem;color:var(--muted);margin-top:.3rem}
+.seo-card.red .seo-card-val{color:#f85149}
+.seo-card.orange .seo-card-val{color:var(--orange)}
+.seo-card.green .seo-card-val{color:var(--green)}
+.seo-score{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;font-size:.75rem;font-weight:700;flex-shrink:0}
+.score-good{background:rgba(63,185,80,.15);color:var(--green);border:1px solid rgba(63,185,80,.3)}
+.score-warn{background:rgba(210,153,34,.15);color:var(--orange);border:1px solid rgba(210,153,34,.3)}
+.score-bad{background:rgba(248,81,73,.12);color:#f85149;border:1px solid rgba(248,81,73,.25)}
+.seo-check{display:inline-flex;align-items:center;gap:.25rem;font-size:.72rem;padding:.18rem .55rem;border-radius:10px;font-weight:500;white-space:nowrap}
+.chk-ok{background:rgba(63,185,80,.1);color:var(--green)}
+.chk-warn{background:rgba(210,153,34,.1);color:var(--orange)}
+.chk-miss{background:rgba(248,81,73,.08);color:#f85149}
+.seo-sort-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.72rem;padding:0 .3rem;vertical-align:middle}
+.seo-sort-btn.asc::after{content:" ↑"}
+.seo-sort-btn.desc::after{content:" ↓"}
+.priority-badge{font-size:.68rem;font-weight:700;padding:.15rem .55rem;border-radius:10px}
+.pri-high{background:rgba(248,81,73,.12);color:#f85149;border:1px solid rgba(248,81,73,.25)}
+.pri-med{background:rgba(210,153,34,.12);color:var(--orange);border:1px solid rgba(210,153,34,.25)}
+.pri-ok{background:rgba(63,185,80,.1);color:var(--green);border:1px solid rgba(63,185,80,.2)}
+.seo-filter-bar{display:flex;gap:.6rem;margin-bottom:1rem;flex-wrap:wrap;align-items:center}
+.seo-filter-bar select,.seo-filter-bar input{background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:.4rem .75rem;color:var(--text);font-size:.82rem;outline:none;cursor:pointer}
+.seo-filter-bar input{width:220px}
+.seo-filter-bar input:focus,.seo-filter-bar select:focus{border-color:var(--blue)}
+
 @media(max-width:700px){
   .stats{grid-template-columns:repeat(2,1fr)}
   .tl-kw{display:none}
@@ -256,11 +284,14 @@ td.td-links{font-size:.75rem;color:var(--muted);text-align:center}
 <div class="tabs">
   <button class="tab active" onclick="showTab('timeline',this)">Tidslinje</button>
   <button class="tab" onclick="showTab('table',this)">Alle opslag</button>
+  <button class="tab" onclick="showTab('seo',this)">SEO Analyse</button>
 </div>
 
 <div id="pane-timeline" class="pane active">
   <div class="loading"><div class="loading-spinner"></div>Indlæser…</div>
 </div>
+<div id="pane-seo" class="pane"></div>
+
 <div id="pane-table" class="pane">
   <div class="toolbar">
     <input id="search" placeholder="Søg titel eller nøgleord…" oninput="filterTable()">
@@ -427,6 +458,7 @@ function renderAll() {
   document.getElementById('s-soon').textContent  = soonsched.length;
   renderTimeline(pub, sched);
   renderTable();
+  renderSEO();
 }
 
 function fmtDate(d){ return new Date(d).toLocaleDateString('da-DK',{day:'numeric',month:'long',year:'numeric'}) }
@@ -510,6 +542,160 @@ function filterTable() {
 }
 
 function renderTable(){ filterTable(); }
+
+/* ── SEO Analyse ─────────────────────────────────────── */
+let seoSort = {col:'score', dir:'asc'};
+
+function wordCount(html) {
+  return (html || '').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim().split(' ').filter(w=>w.length>1).length;
+}
+
+function seoChecks(p, inboundCnt) {
+  const m   = p.meta || {};
+  const kw  = (m._yoast_wpseo_focuskw || '').trim();
+  const mt  = (m._yoast_wpseo_title   || '').trim();
+  const md  = (m._yoast_wpseo_metadesc|| '').trim();
+  const img = !!p.featured_media;
+  const exc = !!(p.excerpt || '').trim();
+  const wc  = wordCount(p.content);
+  const links = inboundCnt || 0;
+
+  const checks = [
+    { id:'kw',    label:'Fokus-nøgleord', ok: kw.length>0,                warn: false },
+    { id:'mt',    label:'Meta title',     ok: mt.length>0 && mt.length<=60, warn: mt.length>0 && mt.length>60 },
+    { id:'md',    label:'Meta beskrivelse', ok: md.length>=70 && md.length<=155, warn: md.length>0 && (md.length<70||md.length>155) },
+    { id:'img',   label:'Featured image', ok: img,                         warn: false },
+    { id:'exc',   label:'Excerpt',        ok: exc,                         warn: false },
+    { id:'len',   label:'Ordantal',       ok: wc>=1200,                    warn: wc>=600 && wc<1200 },
+    { id:'links', label:'Interne links',  ok: links>=3,                    warn: links>0 && links<3 },
+  ];
+
+  const score = checks.reduce((acc, c) => {
+    if (c.ok) return acc + (c.id==='len'||c.id==='links' ? 2 : c.id==='kw' ? 2 : 1);
+    if (c.warn) return acc + 0.5;
+    return acc;
+  }, 0);
+  const maxScore = 9;
+
+  return { checks, score, maxScore, kw, mt, md, img, exc, wc, links };
+}
+
+function scoreClass(score, max) {
+  const pct = score / max;
+  if (pct >= 0.85) return 'score-good';
+  if (pct >= 0.55) return 'score-warn';
+  return 'score-bad';
+}
+
+function priorityLabel(score, max) {
+  const pct = score / max;
+  if (pct >= 0.85) return '<span class="priority-badge pri-ok">OK</span>';
+  if (pct >= 0.55) return '<span class="priority-badge pri-med">Forbedres</span>';
+  return '<span class="priority-badge pri-high">Prioritet</span>';
+}
+
+function checkChip(c) {
+  if (c.ok)   return `<span class="seo-check chk-ok">✓ ${c.label}</span>`;
+  if (c.warn) return `<span class="seo-check chk-warn">⚠ ${c.label}</span>`;
+  return           `<span class="seo-check chk-miss">✗ ${c.label}</span>`;
+}
+
+function renderSEO() {
+  const pane = document.getElementById('pane-seo');
+  const inbound = buildInbound();
+
+  const rows = allPosts.map(p => {
+    const { checks, score, maxScore, wc, links } = seoChecks(p, inbound[p.id]);
+    return { p, checks, score, maxScore, wc, links };
+  });
+
+  // Summary cards
+  const missing = key => rows.filter(r => !r.checks.find(c=>c.id===key).ok && !r.checks.find(c=>c.id===key).warn).length;
+  const highPri = rows.filter(r => r.score/r.maxScore < 0.55).length;
+  const medPri  = rows.filter(r => { const pct=r.score/r.maxScore; return pct>=0.55&&pct<0.85; }).length;
+  const okCnt   = rows.filter(r => r.score/r.maxScore >= 0.85).length;
+
+  // Filter + sort state
+  const filterEl = document.getElementById('seo-filter-q');
+  const priorityEl = document.getElementById('seo-priority');
+  const q = filterEl ? filterEl.value.toLowerCase() : '';
+  const priFilter = priorityEl ? priorityEl.value : '';
+
+  let filtered = rows.filter(r => {
+    const titleMatch = r.p.title.toLowerCase().includes(q) || r.p.slug.includes(q);
+    if (!titleMatch) return false;
+    const pct = r.score/r.maxScore;
+    if (priFilter === 'high' && pct >= 0.55) return false;
+    if (priFilter === 'med' && (pct < 0.55 || pct >= 0.85)) return false;
+    if (priFilter === 'ok' && pct < 0.85) return false;
+    return true;
+  });
+
+  filtered.sort((a,b) => {
+    let va, vb;
+    if (seoSort.col==='score') { va=a.score; vb=b.score; }
+    else if (seoSort.col==='wc') { va=a.wc; vb=b.wc; }
+    else if (seoSort.col==='links') { va=a.links; vb=b.links; }
+    else { va=a.p.title; vb=b.p.title; }
+    if (va<vb) return seoSort.dir==='asc'?-1:1;
+    if (va>vb) return seoSort.dir==='asc'?1:-1;
+    return 0;
+  });
+
+  function sortBtn(col, label) {
+    const active = seoSort.col===col;
+    return `<button class="seo-sort-btn${active?' '+seoSort.dir:''}" onclick="setSeoSort('${col}')">${label}</button>`;
+  }
+
+  const tableRows = filtered.map(({p, checks, score, maxScore, wc}) => {
+    const sc = scoreClass(score, maxScore);
+    const pct = Math.round(score/maxScore*100);
+    const chips = checks.map(checkChip).join(' ');
+    return `<tr>
+      <td style="text-align:center"><div class="seo-score ${sc}">${pct}%</div></td>
+      <td>${priorityLabel(score, maxScore)}</td>
+      <td style="font-size:.85rem"><a href="https://mirapass.dk/${p.slug}/" target="_blank" style="color:var(--text);text-decoration:none;font-weight:500">${p.title}</a></td>
+      <td style="font-size:.78rem;color:var(--muted)">${wc.toLocaleString('da-DK')}</td>
+      <td style="white-space:nowrap;line-height:1.9">${chips}</td>
+    </tr>`;
+  }).join('');
+
+  pane.innerHTML = `
+    <div class="seo-grid">
+      <div class="seo-card red"><div class="seo-card-val">${highPri}</div><div class="seo-card-lbl">Høj prioritet</div></div>
+      <div class="seo-card orange"><div class="seo-card-val">${medPri}</div><div class="seo-card-lbl">Kan forbedres</div></div>
+      <div class="seo-card green"><div class="seo-card-val">${okCnt}</div><div class="seo-card-lbl">OK</div></div>
+      <div class="seo-card orange"><div class="seo-card-val">${missing('kw')}</div><div class="seo-card-lbl">Mangler nøgleord</div></div>
+      <div class="seo-card orange"><div class="seo-card-val">${missing('img')}</div><div class="seo-card-lbl">Mangler billede</div></div>
+    </div>
+    <div class="seo-filter-bar">
+      <input id="seo-filter-q" placeholder="Søg opslag…" value="${q}" oninput="renderSEO()">
+      <select id="seo-priority" onchange="renderSEO()">
+        <option value="" ${priFilter===''?'selected':''}>Alle prioriteter</option>
+        <option value="high" ${priFilter==='high'?'selected':''}>Kun: Høj prioritet</option>
+        <option value="med" ${priFilter==='med'?'selected':''}>Kun: Kan forbedres</option>
+        <option value="ok" ${priFilter==='ok'?'selected':''}>Kun: OK</option>
+      </select>
+      <span style="font-size:.8rem;color:var(--muted);margin-left:auto">${filtered.length} opslag</span>
+    </div>
+    <table style="font-size:.83rem">
+      <thead><tr>
+        <th style="width:60px;text-align:center">${sortBtn('score','Score')}</th>
+        <th style="width:100px">Prioritet</th>
+        <th>${sortBtn('title','Titel')}</th>
+        <th style="width:80px">${sortBtn('wc','Ord')}</th>
+        <th>Tjek</th>
+      </tr></thead>
+      <tbody>${tableRows}</tbody>
+    </table>`;
+}
+
+function setSeoSort(col) {
+  if (seoSort.col === col) seoSort.dir = seoSort.dir==='asc'?'desc':'asc';
+  else { seoSort.col = col; seoSort.dir = col==='score'?'asc':'desc'; }
+  renderSEO();
+}
+
 loadPosts();
 </script>
 </body>
@@ -533,6 +719,8 @@ def fetch_posts():
             "date": p["date"],
             "meta": p.get("meta", {}),
             "content": p["content"]["raw"],
+            "featured_media": p.get("featured_media", 0),
+            "excerpt": p.get("excerpt", {}).get("raw", ""),
         }
         for p in posts
     ]
