@@ -137,6 +137,9 @@ td.td-links{font-size:.75rem;color:var(--muted);text-align:center}
 .log-err{color:#f85149}
 .log-info{color:var(--blue)}
 
+/* ── Typography ──────────────────────── */
+h2{font-size:1.05rem;font-weight:600}
+
 /* ── Loading / empty ─────────────────── */
 .loading{text-align:center;padding:4rem;color:var(--muted)}
 .loading-spinner{width:28px;height:28px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 1rem}

@@ -1,0 +1,402 @@
+[
+  {
+    "id": 1,
+    "gruppe": "Claude Code & teknisk",
+    "title": "Claude Code: den komplette begynderguide (2026)",
+    "slug": "claude-code-begynderguide",
+    "focus_kw": "claude code begynder",
+    "seo_title": "Claude Code: den komplette begynderguide (2026) | Mirapass",
+    "seo_desc": "Kom i gang med Claude Code fra nul: installation, første kommando, CLAUDE.md og de vigtigste funktioner. Komplet dansk begynderguide til 2026.",
+    "status": "pending"
+  },
+  {
+    "id": 2,
+    "gruppe": "Claude Code & teknisk",
+    "title": "Claude Code vs Cursor vs GitHub Copilot: hvilken AI-kodeassistent vinder?",
+    "slug": "claude-code-vs-cursor-copilot",
+    "focus_kw": "claude code vs cursor",
+    "seo_title": "Claude Code vs Cursor vs GitHub Copilot (2026) | Mirapass",
+    "seo_desc": "Sammenligning af de tre største AI-kodeassistenter: Claude Code, Cursor og GitHub Copilot. Pris, funktioner og hvornår du bruger hvilken.",
+    "status": "pending"
+  },
+  {
+    "id": 3,
+    "gruppe": "Claude Code & teknisk",
+    "title": "CLAUDE.md: skriv den perfekte projektinstruktionsfil",
+    "slug": "claude-md-fil-guide",
+    "focus_kw": "claude.md fil guide",
+    "seo_title": "CLAUDE.md: skriv den perfekte projektinstruktionsfil | Mirapass",
+    "seo_desc": "Hvad er CLAUDE.md, hvorfor er den vigtig, og hvad skal der stå i den? Den komplette guide til at skrive projektinstruktioner Claude faktisk følger.",
+    "status": "pending"
+  },
+  {
+    "id": 4,
+    "gruppe": "Claude Code & teknisk",
+    "title": "Claude Code hooks: automatiser handlinger i dit udviklingsmiljø",
+    "slug": "claude-code-hooks",
+    "focus_kw": "claude code hooks",
+    "seo_title": "Claude Code hooks: automatiser dit udviklingsmiljø | Mirapass",
+    "seo_desc": "Claude Code hooks lader dig automatisk køre scripts før og efter AI-handlinger. Lær hvad hooks er, og hvordan du opsætter dem med konkrete eksempler.",
+    "status": "pending"
+  },
+  {
+    "id": 5,
+    "gruppe": "Claude Code & teknisk",
+    "title": "Claude til kodereview: find fejl og forbedr din kode med AI",
+    "slug": "claude-kodereview",
+    "focus_kw": "claude kodereview",
+    "seo_title": "Claude til kodereview: find fejl og forbedr din kode | Mirapass",
+    "seo_desc": "Brug Claude til at reviewe kode, finde bugs og foreslå forbedringer. Lær de bedste prompts og teknikker til AI-drevet kodereview.",
+    "status": "pending"
+  },
+  {
+    "id": 6,
+    "gruppe": "Claude Code & teknisk",
+    "title": "Claude til SQL og databaser: skriv og optimer forespørgsler med AI",
+    "slug": "claude-sql-databaser",
+    "focus_kw": "claude sql databaser",
+    "seo_title": "Claude til SQL og databaser: skriv forespørgsler med AI | Mirapass",
+    "seo_desc": "Claude kan skrive, forklare og optimere SQL-forespørgsler — selv hvis du ikke kender SQL. Komplet guide med eksempler til SELECT, JOIN, aggregering og mere.",
+    "status": "pending"
+  },
+  {
+    "id": 7,
+    "gruppe": "Claude Code & teknisk",
+    "title": "Claude til JavaScript: lær webudvikling med AI som lærer",
+    "slug": "claude-javascript",
+    "focus_kw": "claude javascript",
+    "seo_title": "Claude til JavaScript: lær webudvikling med AI | Mirapass",
+    "seo_desc": "Brug Claude til at lære JavaScript og bygge webprojekter — fra grundlæggende koncepter til DOM-manipulation, fetch og moderne ES6+ syntax.",
+    "status": "pending"
+  },
+  {
+    "id": 8,
+    "gruppe": "Claude Code & teknisk",
+    "title": "Claude Batch API: behandl hundredvis af opgaver automatisk",
+    "slug": "claude-batch-api",
+    "focus_kw": "claude batch api",
+    "seo_title": "Claude Batch API: automatisk massebehandling af opgaver | Mirapass",
+    "seo_desc": "Claude Batch API lader dig sende hundredvis af anmodninger på én gang til halv pris. Lær hvornår det giver mening og hvordan du bruger det.",
+    "status": "pending"
+  },
+  {
+    "id": 9,
+    "gruppe": "Prompt-teknik & avanceret brug",
+    "title": "Systemprompter i Claude: hvad de er og hvad du kan bruge dem til",
+    "slug": "systemprompter-claude",
+    "focus_kw": "systemprompter claude",
+    "seo_title": "Systemprompter i Claude: komplet guide (2026) | Mirapass",
+    "seo_desc": "Systemprompter definerer Claudes rolle, tone og regler før samtalen starter. Lær hvad de er, hvordan du skriver dem, og hvornår de er uundværlige.",
+    "status": "pending"
+  },
+  {
+    "id": 10,
+    "gruppe": "Prompt-teknik & avanceret brug",
+    "title": "Chain-of-thought prompting: få Claude til at vise sin tankegang",
+    "slug": "chain-of-thought-prompting",
+    "focus_kw": "chain of thought prompting",
+    "seo_title": "Chain-of-thought prompting i Claude: komplet guide | Mirapass",
+    "seo_desc": "Chain-of-thought prompting får Claude til at tænke trin for trin — og levere meget bedre svar. Lær teknikken med konkrete eksempler og skabeloner.",
+    "status": "pending"
+  },
+  {
+    "id": 11,
+    "gruppe": "Prompt-teknik & avanceret brug",
+    "title": "Claude Skills: hvad de er og hvordan du laver dit første skill",
+    "slug": "claude-skills-guide",
+    "focus_kw": "claude skills oprette",
+    "seo_title": "Claude Skills: hvad de er og hvordan du opretter dem | Mirapass",
+    "seo_desc": "Claude Skills er genanvendelige AI-instruktioner gemt som filer. Lær hvad et skill er, hvordan SKILL.md er opbygget, og lav dit første skill fra bunden.",
+    "status": "pending"
+  },
+  {
+    "id": 12,
+    "gruppe": "Prompt-teknik & avanceret brug",
+    "title": "Claude Cowork: den komplette guide til autonom AI",
+    "slug": "claude-cowork-guide",
+    "focus_kw": "claude cowork guide",
+    "seo_title": "Claude Cowork: den komplette guide til autonom AI (2026) | Mirapass",
+    "seo_desc": "Claude Cowork lader AI arbejde autonomt i din filstruktur i minutter til timer. Lær hvad Cowork er, hvordan du sætter det op, og hvad det er bedst til.",
+    "status": "pending"
+  },
+  {
+    "id": 13,
+    "gruppe": "Prompt-teknik & avanceret brug",
+    "title": "Hvad er prompt caching? Spar tokens og penge med Claude",
+    "slug": "claude-prompt-caching",
+    "focus_kw": "claude prompt caching",
+    "seo_title": "Prompt caching i Claude: spar tokens og penge (2026) | Mirapass",
+    "seo_desc": "Prompt caching gemmer dele af din kontekst og genbruger dem på tværs af kald — op til 90% billigere. Lær hvad det er og hvornår du skal bruge det.",
+    "status": "pending"
+  },
+  {
+    "id": 14,
+    "gruppe": "Prompt-teknik & avanceret brug",
+    "title": "Claude multi-agent: hvad det er og hvornår det giver mening",
+    "slug": "claude-multi-agent",
+    "focus_kw": "claude multi-agent",
+    "seo_title": "Claude multi-agent workflows: hvad og hvornår (2026) | Mirapass",
+    "seo_desc": "Multi-agent workflows lader flere Claude-instanser arbejde parallelt mod et fælles mål. Lær hvad det er, hvornår det giver mening og hvordan du bygger det.",
+    "status": "pending"
+  },
+  {
+    "id": 15,
+    "gruppe": "Prompt-teknik & avanceret brug",
+    "title": "Claude Files API: upload og analyser dokumenter automatisk",
+    "slug": "claude-files-api",
+    "focus_kw": "claude files api",
+    "seo_title": "Claude Files API: upload og analyser dokumenter automatisk | Mirapass",
+    "seo_desc": "Claude Files API lader dig uploade filer én gang og referere til dem på tværs af mange API-kald. Lær hvordan det virker og hvornår du skal bruge det.",
+    "status": "pending"
+  },
+  {
+    "id": 16,
+    "gruppe": "Indhold & kommunikation",
+    "title": "Claude til YouTube: titler, beskrivelser og videoscripts med AI",
+    "slug": "claude-youtube",
+    "focus_kw": "claude youtube",
+    "seo_title": "Claude til YouTube: titler, beskrivelser og scripts | Mirapass",
+    "seo_desc": "Brug Claude til at skrive YouTube-titler der klikker, SEO-beskrivelser der ranker og videoscripts der holder seerne. Komplet guide med prompts.",
+    "status": "pending"
+  },
+  {
+    "id": 17,
+    "gruppe": "Indhold & kommunikation",
+    "title": "Claude til podcasts: show notes, scripts og episodestruktur",
+    "slug": "claude-podcast",
+    "focus_kw": "claude podcast",
+    "seo_title": "Claude til podcasts: show notes, scripts og episoder | Mirapass",
+    "seo_desc": "Spar timer per episode med Claude: generer show notes fra transskript, skriv episode-intro, lav gæstespørgsmål og planlæg sæsonens indhold.",
+    "status": "pending"
+  },
+  {
+    "id": 18,
+    "gruppe": "Indhold & kommunikation",
+    "title": "Claude til nyhedsbreve: skriv e-mailkampagner der virker",
+    "slug": "claude-nyhedsbreve",
+    "focus_kw": "claude nyhedsbreve",
+    "seo_title": "Claude til nyhedsbreve: skriv e-mailkampagner med AI | Mirapass",
+    "seo_desc": "Fra emnelinje til CTA: lær at bruge Claude til at skrive nyhedsbreve med høj åbnings- og klikrate — med konkrete skabeloner og prompts.",
+    "status": "pending"
+  },
+  {
+    "id": 19,
+    "gruppe": "Indhold & kommunikation",
+    "title": "Claude til SEO: nøgleordsanalyse, meta-beskrivelser og intern linking",
+    "slug": "claude-seo-strategi",
+    "focus_kw": "claude seo strategi",
+    "seo_title": "Claude til SEO: nøgleord, meta og intern linking | Mirapass",
+    "seo_desc": "Brug Claude til at lave nøgleordsanalyse, skrive meta-beskrivelser og planlægge intern linking. SEO-arbejde på en brøkdel af den normale tid.",
+    "status": "pending"
+  },
+  {
+    "id": 20,
+    "gruppe": "Indhold & kommunikation",
+    "title": "Claude til copywriting: landingssider og salgstekster der konverterer",
+    "slug": "claude-copywriting",
+    "focus_kw": "claude copywriting",
+    "seo_title": "Claude til copywriting: landingssider og salgstekster | Mirapass",
+    "seo_desc": "Lær at bruge Claude til at skrive landingssider, annoncer og salgstekster med klassiske copywriting-frameworks: AIDA, PAS og StoryBrand.",
+    "status": "pending"
+  },
+  {
+    "id": 21,
+    "gruppe": "Indhold & kommunikation",
+    "title": "Claude til pressemeddelelser: skriv PR-indhold der bliver brugt",
+    "slug": "claude-pressemeddelelse",
+    "focus_kw": "claude pressemeddelelse",
+    "seo_title": "Claude til pressemeddelelser og PR-indhold | Mirapass",
+    "seo_desc": "Skriv pressemeddelelser journalister faktisk bruger med Claude. Lær strukturen, sproget og de prompts der giver dig et professionelt resultat.",
+    "status": "pending"
+  },
+  {
+    "id": 22,
+    "gruppe": "Indhold & kommunikation",
+    "title": "Claude til brainstorming: idégenering og kreative beslutningsprocesser",
+    "slug": "claude-brainstorming",
+    "focus_kw": "claude brainstorming",
+    "seo_title": "Claude til brainstorming: idégenering og kreative processer | Mirapass",
+    "seo_desc": "Brug Claude som brainstorming-partner: generér idéer, udfordre antagelser og strukturer komplekse beslutninger med AI som sparringspartner.",
+    "status": "pending"
+  },
+  {
+    "id": 23,
+    "gruppe": "Indhold & kommunikation",
+    "title": "Claude til korrektur og feedback: forbedre dine tekster med AI",
+    "slug": "claude-korrekturlæsning",
+    "focus_kw": "claude korrekturlæsning",
+    "seo_title": "Claude til korrektur og feedback på tekster | Mirapass",
+    "seo_desc": "Claude kan korrekturlæse, forbedre struktur og give præcis feedback på dine tekster — langt bedre end stavekontrol. Lær de bedste teknikker.",
+    "status": "pending"
+  },
+  {
+    "id": 24,
+    "gruppe": "Brancher og roller",
+    "title": "Claude til freelancere: tilbud, fakturering og kundekommunikation",
+    "slug": "claude-freelancer",
+    "focus_kw": "claude freelancer",
+    "seo_title": "Claude til freelancere: tilbud, faktura og kommunikation | Mirapass",
+    "seo_desc": "Som freelancer bruger du for meget tid på administration. Lær at bruge Claude til at skrive tilbud, fakturaer, kontraktudkast og klientmails hurtigere.",
+    "status": "pending"
+  },
+  {
+    "id": 25,
+    "gruppe": "Brancher og roller",
+    "title": "Claude til iværksættere: fra idé til forretningsmodel med AI",
+    "slug": "claude-iværksætter",
+    "focus_kw": "claude iværksætter",
+    "seo_title": "Claude til iværksættere: fra idé til forretningsmodel | Mirapass",
+    "seo_desc": "Claude kan hjælpe iværksættere med at validere idéer, skrive forretningsmodeller, analysere markeder og forberede investorpræsentationer.",
+    "status": "pending"
+  },
+  {
+    "id": 26,
+    "gruppe": "Brancher og roller",
+    "title": "Claude til journalister og skribenter: research, interviews og artikler",
+    "slug": "claude-journalistik",
+    "focus_kw": "claude journalistik",
+    "seo_title": "Claude til journalister: research, interviews og artikler | Mirapass",
+    "seo_desc": "Journalister og skribenter bruger Claude til at researche emner, strukturere artikler, forberede interviewspørgsmål og skrive hurtigere uden at miste stemmen.",
+    "status": "pending"
+  },
+  {
+    "id": 27,
+    "gruppe": "Brancher og roller",
+    "title": "Claude til coaches og konsulenter: programmer, rapporter og sessioner",
+    "slug": "claude-coaching-konsulent",
+    "focus_kw": "claude coaching konsulent",
+    "seo_title": "Claude til coaches og konsulenter: programmer og rapporter | Mirapass",
+    "seo_desc": "Brug Claude til at designe coachingprogrammer, skrive sessionsreferater, lave klientrapporter og udvikle kursusindhold hurtigere og mere konsistent.",
+    "status": "pending"
+  },
+  {
+    "id": 28,
+    "gruppe": "Brancher og roller",
+    "title": "Claude til onboarding: introducer nye medarbejdere med AI",
+    "slug": "claude-medarbejder-onboarding",
+    "focus_kw": "claude medarbejder onboarding",
+    "seo_title": "Claude til onboarding af nye medarbejdere med AI | Mirapass",
+    "seo_desc": "Claude kan generere onboarding-planer, velkomstmails, FAQ-dokumenter og oplæringsmaterialer — tilpasset rolle og afdeling. Spar timer per ny medarbejder.",
+    "status": "pending"
+  },
+  {
+    "id": 29,
+    "gruppe": "Brancher og roller",
+    "title": "Claude til markedsundersøgelse: surveys, segmentering og analyse",
+    "slug": "claude-markedsundersøgelse",
+    "focus_kw": "claude markedsundersøgelse",
+    "seo_title": "Claude til markedsundersøgelse og kundeanalyse | Mirapass",
+    "seo_desc": "Brug Claude til at designe surveys, analysere svar, segmentere målgrupper og skrive markedsundersøgelsesrapporter — uden konsulentbudget.",
+    "status": "pending"
+  },
+  {
+    "id": 30,
+    "gruppe": "Brancher og roller",
+    "title": "Claude til produktudvikling: fra brugerindsigt til feature-brief",
+    "slug": "claude-produktudvikling",
+    "focus_kw": "claude produktudvikling",
+    "seo_title": "Claude til produktudvikling: brugerindsigt og feature-brief | Mirapass",
+    "seo_desc": "Produktteams bruger Claude til at analysere brugerfeedback, skrive user stories, prioritere features og lave produktdokumentation hurtigere.",
+    "status": "pending"
+  },
+  {
+    "id": 31,
+    "gruppe": "Brancher og roller",
+    "title": "Claude til e-læring og kurser: pensum, quizzer og læringsmål",
+    "slug": "claude-e-læring",
+    "focus_kw": "claude e-læring",
+    "seo_title": "Claude til e-læring og online kurser: pensum og quizzer | Mirapass",
+    "seo_desc": "Byg online kurser hurtigere med Claude: skriv læringsmål, generer quiz-spørgsmål, strukturer moduler og skab engagerende kursusindhold med AI.",
+    "status": "pending"
+  },
+  {
+    "id": 32,
+    "gruppe": "Sammenligninger & modeller",
+    "title": "Claude vs Grok 3: hvad er forskellen og hvornår bruger du hvad?",
+    "slug": "claude-vs-grok",
+    "focus_kw": "claude vs grok",
+    "seo_title": "Claude vs Grok 3: sammenligning 2026 | Mirapass",
+    "seo_desc": "Claude og Grok 3 er begge kraftfulde AI-modeller — men til meget forskellige ting. Her er en ærlig sammenligning af styrker, svagheder og use cases.",
+    "status": "pending"
+  },
+  {
+    "id": 33,
+    "gruppe": "Sammenligninger & modeller",
+    "title": "Claude Opus 4 vs Sonnet 4: hvornår bruger du hvilken model?",
+    "slug": "claude-opus-4-sonnet-4",
+    "focus_kw": "claude opus 4 sonnet 4",
+    "seo_title": "Claude Opus 4 vs Sonnet 4: hvornår bruger du hvilken? | Mirapass",
+    "seo_desc": "Opus 4 er kraftfuld men dyr. Sonnet 4 er hurtig og effektiv. Lær præcis hvornår du bruger hvilken Claude-model og hvad forskellen betyder i praksis.",
+    "status": "pending"
+  },
+  {
+    "id": 34,
+    "gruppe": "Sammenligninger & modeller",
+    "title": "Gratis AI-alternativer til Claude: hvad er dine muligheder i 2026?",
+    "slug": "gratis-ai-alternativer-claude",
+    "focus_kw": "gratis ai alternativer",
+    "seo_title": "Gratis AI-alternativer til Claude (2026) | Mirapass",
+    "seo_desc": "Vil du ikke betale for Claude Pro? Her er de bedste gratis alternativer i 2026 — hvad de kan, hvad de ikke kan, og hvornår de er gode nok.",
+    "status": "pending"
+  },
+  {
+    "id": 35,
+    "gruppe": "Sammenligninger & modeller",
+    "title": "Claude vs Llama: open source vs proprietær AI i 2026",
+    "slug": "claude-vs-llama",
+    "focus_kw": "claude vs llama",
+    "seo_title": "Claude vs Llama: open source vs proprietær AI (2026) | Mirapass",
+    "seo_desc": "Llama er gratis og open source. Claude er lukket og betalt. Hvad er forskellen i praksis — og hvornår giver det mening at vælge det ene frem for det andet?",
+    "status": "pending"
+  },
+  {
+    "id": 36,
+    "gruppe": "Integrationer & workflow",
+    "title": "Claude med Make og Zapier: byg automations uden kode",
+    "slug": "claude-make-zapier",
+    "focus_kw": "claude make zapier",
+    "seo_title": "Claude med Make og Zapier: automations uden kode | Mirapass",
+    "seo_desc": "Forbind Claude med hundredvis af apps via Make og Zapier — automatiser e-mails, notifikationer, rapporter og meget mere uden at skrive kode.",
+    "status": "pending"
+  },
+  {
+    "id": 37,
+    "gruppe": "Integrationer & workflow",
+    "title": "Claude med Google Workspace: Docs, Sheets og Gmail med AI",
+    "slug": "claude-google-workspace",
+    "focus_kw": "claude google workspace",
+    "seo_title": "Claude med Google Workspace: Docs, Sheets og Gmail | Mirapass",
+    "seo_desc": "Brug Claude direkte i dit Google-arbejdsrum: skriv i Docs, analyser i Sheets, svar i Gmail. Lær de bedste integrationer og workflows.",
+    "status": "pending"
+  },
+  {
+    "id": 38,
+    "gruppe": "Integrationer & workflow",
+    "title": "Claude med Microsoft 365: Word, Excel og Outlook med AI",
+    "slug": "claude-microsoft-365",
+    "focus_kw": "claude microsoft 365",
+    "seo_title": "Claude med Microsoft 365: Word, Excel og Outlook | Mirapass",
+    "seo_desc": "Integrer Claude i din Microsoft 365-hverdag: skriv i Word, analyser i Excel, kommuniker i Outlook — med AI som aktiv arbejdspartner.",
+    "status": "pending"
+  },
+  {
+    "id": 39,
+    "gruppe": "Integrationer & workflow",
+    "title": "Claude til dataanalyse: arbejd med CSV og strukturerede data",
+    "slug": "claude-dataanalyse-csv",
+    "focus_kw": "claude dataanalyse csv",
+    "seo_title": "Claude til dataanalyse: CSV og strukturerede data | Mirapass",
+    "seo_desc": "Upload din CSV til Claude og få øjeblikkelig analyse, mønstre, visualiseringsforslag og handlingsanbefalinger — uden at kende pandas eller SQL.",
+    "status": "pending"
+  },
+  {
+    "id": 40,
+    "gruppe": "Integrationer & workflow",
+    "title": "10 måder Claude kan spare dig 5 timer om ugen",
+    "slug": "claude-spare-tid-uge",
+    "focus_kw": "claude spare tid uge",
+    "seo_title": "10 måder Claude sparer dig 5 timer om ugen | Mirapass",
+    "seo_desc": "Konkrete workflows der tilsammen sparer de fleste fagpersoner 5+ timer ugentligt med Claude: e-mails, referater, research, rapporter og meget mere.",
+    "status": "pending"
+  }
+]
