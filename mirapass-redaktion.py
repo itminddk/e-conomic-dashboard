@@ -305,7 +305,7 @@ h2{font-size:1.05rem;font-weight:600}
   <button class="tab active" onclick="showTab('timeline',this)">Tidslinje</button>
   <button class="tab" onclick="showTab('table',this)">Alle opslag</button>
   <button class="tab" onclick="showTab('seo',this)">SEO Analyse</button>
-  <button class="tab" onclick="showTab('linking',this)">Intern Linking</button>
+  <button class="tab" onclick="showLinking(this)">Intern Linking</button>
 </div>
 
 <div id="pane-timeline" class="pane active">
@@ -824,11 +824,9 @@ async function runLinkingFix() {
   }
 }
 
-// Load linking tab when clicked
-const origShowTab = showTab;
-function showTab(id, btn) {
-  origShowTab(id, btn);
-  if (id === 'linking' && !linkingData) loadLinking();
+function showLinking(btn) {
+  showTab('linking', btn);
+  if (!linkingData) loadLinking();
 }
 
 loadPosts();
