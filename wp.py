@@ -14,25 +14,64 @@ Credentials læses automatisk fra ~/.config/mirapass/wp.credentials (format: use
 Yoast-meta kræver at Code Snippet #9 er aktiv på siden (register_rest_field for guide CPT).
 """
 
-import os, re, time, base64
+import os, re, time, base64, subprocess
 from typing import Union
 import requests
 
-WP_BASE   = "https://mirapass.dk/wp-json/wp/v2"
-CREDS     = os.path.expanduser("~/.config/mirapass/wp.credentials")
-GEMINI    = os.path.expanduser("~/.config/mirapass/gemini.key")
-IMAGEN    = "imagen-4.0-generate-001"
+WP_BASE = "https://mirapass.dk/wp-json/wp/v2"
+IMAGEN  = "imagen-4.0-generate-001"
+
+# Credential-filer bruges kun som fallback hvis Keychain ikke har dem
+_CREDS_FILE  = os.path.expanduser("~/.config/mirapass/wp.credentials")
+_GEMINI_FILE = os.path.expanduser("~/.config/mirapass/gemini.key")
+
+
+# ── Keychain helpers ──────────────────────────────────────────────────────────
+
+def _keychain_get(service: str, account: str = None) -> str:
+    """Henter en hemmelighed fra macOS Keychain."""
+    cmd = ["security", "find-generic-password", "-s", service, "-w"]
+    if account:
+        cmd += ["-a", account]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode == 0:
+        return r.stdout.strip()
+    raise RuntimeError(
+        f"Keychain: '{service}' ikke fundet. "
+        f"Kør: security add-generic-password -s '{service}' -a '<bruger>' -w '<hemmelighed>' -U"
+    )
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
-def _auth() -> tuple[str, str]:
-    with open(CREDS) as f:
+def _auth() -> tuple:
+    """Henter WP-credentials fra Keychain (eller filer som fallback)."""
+    try:
+        # Keychain: service=mirapass-wp, account=brugernavn, password=app-password
+        cmd = ["security", "find-generic-password", "-s", "mirapass-wp", "-g"]
+        r = subprocess.run(cmd, capture_output=True, text=True)
+        if r.returncode == 0:
+            # Udled account (brugernavn) og password fra output
+            acct_line = next((l for l in r.stdout.splitlines() if '"acct"' in l), "")
+            user = acct_line.split('"')[-2] if acct_line else ""
+            pw = _keychain_get("mirapass-wp")
+            if user and pw:
+                return (user, pw)
+    except Exception:
+        pass
+    # Fallback: plaintext fil
+    with open(_CREDS_FILE) as f:
         user, pw = f.read().strip().split(":", 1)
     return (user, pw)
 
+
 def _gemini_key() -> str:
-    with open(GEMINI) as f:
+    """Henter Gemini API-nøgle fra Keychain (eller fil som fallback)."""
+    try:
+        return _keychain_get("mirapass-gemini", "gemini")
+    except Exception:
+        pass
+    with open(_GEMINI_FILE) as f:
         return f.read().strip()
 
 

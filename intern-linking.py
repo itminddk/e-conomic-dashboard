@@ -17,19 +17,34 @@ Flags:
   --min-words N  Minimum antal ord i donor-paragraf (default: 20)
 """
 
-import sys, os, re, argparse, time
+import sys, os, re, argparse, time, subprocess
 from typing import Optional, Tuple
 import requests
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-CREDS = os.path.expanduser("~/.config/mirapass/wp.credentials")
-WP_BASE = "https://mirapass.dk/wp-json/wp/v2"
+WP_BASE    = "https://mirapass.dk/wp-json/wp/v2"
+_CREDS_FILE = os.path.expanduser("~/.config/mirapass/wp.credentials")
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
 def auth():
-    with open(CREDS) as f:
+    """Henter WP-credentials fra macOS Keychain (eller fil som fallback)."""
+    try:
+        cmd = ["security", "find-generic-password", "-s", "mirapass-wp", "-g"]
+        r = subprocess.run(cmd, capture_output=True, text=True)
+        if r.returncode == 0:
+            acct_line = next((l for l in r.stdout.splitlines() if '"acct"' in l), "")
+            user = acct_line.split('"')[-2] if acct_line else ""
+            pw_r = subprocess.run(
+                ["security", "find-generic-password", "-s", "mirapass-wp", "-w"],
+                capture_output=True, text=True)
+            pw = pw_r.stdout.strip()
+            if user and pw:
+                return (user, pw)
+    except Exception:
+        pass
+    with open(_CREDS_FILE) as f:
         u, p = f.read().strip().split(":", 1)
     return (u, p)
 
