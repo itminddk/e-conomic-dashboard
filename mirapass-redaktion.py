@@ -305,12 +305,14 @@ h2{font-size:1.05rem;font-weight:600}
   <button class="tab active" onclick="showTab('timeline',this)">Tidslinje</button>
   <button class="tab" onclick="showTab('table',this)">Alle opslag</button>
   <button class="tab" onclick="showTab('seo',this)">SEO Analyse</button>
+  <button class="tab" onclick="showTab('linking',this)">Intern Linking</button>
 </div>
 
 <div id="pane-timeline" class="pane active">
   <div class="loading"><div class="loading-spinner"></div>Indlæser…</div>
 </div>
 <div id="pane-seo" class="pane"></div>
+<div id="pane-linking" class="pane"></div>
 
 <div id="pane-table" class="pane">
   <div class="toolbar">
@@ -716,10 +718,302 @@ function setSeoSort(col) {
   renderSEO();
 }
 
+/* ── Intern Linking ───────────────────── */
+let linkingData = null;
+
+async function loadLinking() {
+  const pane = document.getElementById('pane-linking');
+  pane.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Analyserer links…</div>';
+  try {
+    const res = await fetch('/api/linking/audit');
+    linkingData = await res.json();
+    renderLinking();
+  } catch(e) {
+    pane.innerHTML = `<p style="color:#f85149;padding:2rem">Fejl: ${e.message}</p>`;
+  }
+}
+
+function renderLinking() {
+  const pane = document.getElementById('pane-linking');
+  if (!linkingData) return;
+  const { total, orphans, posts } = linkingData;
+  const linked = total - orphans.length;
+  const pct = Math.round(linked / total * 100);
+  const barColor = pct === 100 ? '#3fb950' : pct >= 80 ? '#d29922' : '#f85149';
+
+  const orphanRows = orphans.map(p => `
+    <tr>
+      <td><a href="${p.url}" target="_blank" style="color:var(--accent)">#${p.id}</a></td>
+      <td>${p.title}</td>
+      <td style="color:var(--muted);font-size:.8rem">${p.slug}</td>
+    </tr>`).join('');
+
+  const allRows = posts
+    .slice().sort((a,b) => a.incoming - b.incoming)
+    .map(p => `
+    <tr>
+      <td><a href="${p.url}" target="_blank" style="color:var(--accent)">#${p.id}</a></td>
+      <td>${p.title}</td>
+      <td style="text-align:center;color:${p.incoming===0?'#f85149':p.incoming<3?'#d29922':'#3fb950'}">${p.incoming}</td>
+      <td style="text-align:center;color:var(--muted)">${p.outgoing}</td>
+    </tr>`).join('');
+
+  pane.innerHTML = `
+    <div style="display:flex;gap:2rem;flex-wrap:wrap;margin-bottom:1.5rem">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1.25rem 1.75rem;min-width:180px">
+        <div style="font-size:.78rem;color:var(--muted);margin-bottom:.4rem">Med indgående links</div>
+        <div style="font-size:1.9rem;font-weight:700;color:${barColor}">${linked}<span style="font-size:1rem;color:var(--muted);font-weight:400"> / ${total}</span></div>
+        <div style="margin-top:.6rem;background:var(--border);border-radius:4px;height:6px">
+          <div style="width:${pct}%;background:${barColor};height:6px;border-radius:4px;transition:width .4s"></div>
+        </div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1.25rem 1.75rem;min-width:160px">
+        <div style="font-size:.78rem;color:var(--muted);margin-bottom:.4rem">Forældreløse indlæg</div>
+        <div style="font-size:1.9rem;font-weight:700;color:${orphans.length===0?'#3fb950':'#f85149'}">${orphans.length}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:.6rem;justify-content:center">
+        <button onclick="runLinkingFix()" ${orphans.length===0?'disabled':''} style="background:var(--accent);color:#fff;border:none;border-radius:6px;padding:.55rem 1.2rem;cursor:pointer;font-size:.88rem;opacity:${orphans.length===0?'.4':'1'}">
+          ⚡ Fix forældreløse (${orphans.length})
+        </button>
+        <button onclick="loadLinking()" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:.45rem 1rem;cursor:pointer;font-size:.83rem">
+          ↻ Opdater analyse
+        </button>
+      </div>
+    </div>
+
+    <div id="linking-log" style="display:none;background:#0d1117;border:1px solid var(--border);border-radius:6px;padding:1rem;margin-bottom:1.5rem;font-family:monospace;font-size:.8rem;max-height:220px;overflow-y:auto;color:#e6edf3;white-space:pre-wrap"></div>
+
+    ${orphans.length > 0 ? `
+    <h2 style="margin-bottom:.75rem">Forældreløse indlæg (${orphans.length})</h2>
+    <table style="font-size:.85rem;margin-bottom:2rem">
+      <thead><tr><th style="width:60px">ID</th><th>Titel</th><th>Slug</th></tr></thead>
+      <tbody>${orphanRows}</tbody>
+    </table>` : '<p style="color:#3fb950;margin-bottom:2rem">✅ Alle indlæg har mindst ét indgående link!</p>'}
+
+    <h2 style="margin-bottom:.75rem">Alle indlæg — link-oversigt</h2>
+    <table style="font-size:.83rem">
+      <thead><tr>
+        <th style="width:60px">ID</th>
+        <th>Titel</th>
+        <th style="text-align:center;width:80px">Ind</th>
+        <th style="text-align:center;width:80px">Ud</th>
+      </tr></thead>
+      <tbody>${allRows}</tbody>
+    </table>`;
+}
+
+async function runLinkingFix() {
+  const log = document.getElementById('linking-log');
+  log.style.display = 'block';
+  log.textContent = 'Starter fix…\n';
+
+  try {
+    const res = await fetch('/api/linking/fix', { method: 'POST' });
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      log.textContent += decoder.decode(value);
+      log.scrollTop = log.scrollHeight;
+    }
+    log.textContent += '\nFærdig — genindlæser analyse…\n';
+    await loadLinking();
+  } catch(e) {
+    log.textContent += 'Fejl: ' + e.message;
+  }
+}
+
+// Load linking tab when clicked
+const origShowTab = showTab;
+function showTab(id, btn) {
+  origShowTab(id, btn);
+  if (id === 'linking' && !linkingData) loadLinking();
+}
+
 loadPosts();
 </script>
 </body>
 </html>"""
+
+
+# ── Intern linking helpers ────────────────────────────────────────────────────
+
+_LINK_STOP = {
+    "og","er","en","et","de","den","det","til","med","for","på","fra","af","om",
+    "ved","som","der","hvad","kan","du","din","dit","i","at","ikke","hvornår",
+    "hvilken","sådan","aldrig","bedre","mere","alle","hver",
+    "the","and","for","with","how","your","from","into",
+}
+
+def _lk_raw(post):
+    return post.get("content", {}).get("raw", "") or post.get("content", "")
+
+def _lk_count_incoming(target, all_posts):
+    slug = target.get("slug","")
+    return sum(1 for p in all_posts if p["id"] != target["id"] and slug in _lk_raw(p))
+
+def _lk_count_outgoing(post, all_posts):
+    content = _lk_raw(post)
+    return sum(1 for p in all_posts if p["id"] != post["id"] and p.get("slug","") in content)
+
+def _lk_keywords(post):
+    import re as _re
+    title = post.get("title", {}).get("rendered", "") if isinstance(post.get("title"), dict) else post.get("title","")
+    slug  = post.get("slug","").replace("-"," ")
+    text  = f"{title} {slug}".lower()
+    words = _re.findall(r"[a-zæøåA-ZÆØÅ]{3,}", text)
+    seen, result = set(), []
+    for w in words:
+        if w.lower() not in _LINK_STOP and w.lower() not in seen:
+            seen.add(w.lower())
+            result.append(w)
+    return result[:12]
+
+def _lk_find_para(content, keywords, min_words=20):
+    import re as _re
+    paras = _re.findall(r'<p>(.*?)</p>', content, _re.DOTALL)
+    best, best_score = None, 0
+    for para in paras:
+        if '<a ' in para:
+            continue
+        clean = _re.sub(r'<[^>]+>', '', para).strip()
+        if len(clean.split()) < min_words:
+            continue
+        for kw in keywords:
+            m = _re.search(r'\b' + _re.escape(kw) + r'\b', clean, _re.IGNORECASE)
+            if m:
+                score = len(clean.split()) - len(kw)
+                if best is None or score < best_score:
+                    best_score = score
+                    best = (m.group(0), kw)
+                break
+    return best
+
+def _lk_find_donor(target, all_posts, min_words=20):
+    slug     = target.get("slug","")
+    keywords = _lk_keywords(target)
+    if not keywords:
+        return None
+    candidates = []
+    for donor in all_posts:
+        if donor["id"] == target["id"]:
+            continue
+        if slug in _lk_raw(donor):
+            continue
+        result = _lk_find_para(_lk_raw(donor), keywords, min_words)
+        if result:
+            find_text, _ = result
+            incoming = _lk_count_incoming(donor, all_posts)
+            candidates.append((incoming, donor, find_text))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda x: -x[0])
+    _, donor, find_text = candidates[0]
+    return donor, find_text
+
+def _lk_insert(content, find_text, url):
+    import re as _re
+    pattern = _re.compile(
+        r'(<p>(?:(?!<a\s).)*?\b)(' + _re.escape(find_text) + r')(\b(?:(?!</p>).)*?</p>)',
+        _re.DOTALL | _re.IGNORECASE,
+    )
+    new, n = pattern.subn(
+        lambda m: m.group(1) + f'<a href="{url}">{m.group(2)}</a>' + m.group(3),
+        content, count=1,
+    )
+    return new if n else content
+
+def _lk_fetch_all():
+    """Henter alle publicerede indlæg med fuldt rå indhold til linking-analyse."""
+    posts, page = [], 1
+    while True:
+        r = requests.get(f"{WP_BASE}/posts", auth=wp_auth(), params={
+            "per_page": 100, "page": page, "context": "edit", "status": "publish",
+        }, timeout=30)
+        batch = r.json()
+        if not batch or isinstance(batch, dict):
+            break
+        posts.extend(batch)
+        if len(batch) < 100:
+            break
+        page += 1
+    return posts
+
+def linking_audit():
+    """Returnerer linking-status for alle indlæg."""
+    all_posts = _lk_fetch_all()
+    result = []
+    for p in all_posts:
+        inc = _lk_count_incoming(p, all_posts)
+        out = _lk_count_outgoing(p, all_posts)
+        result.append({
+            "id":       p["id"],
+            "title":    p.get("title",{}).get("rendered","") if isinstance(p.get("title"),dict) else p.get("title",""),
+            "slug":     p.get("slug",""),
+            "url":      p.get("link",""),
+            "incoming": inc,
+            "outgoing": out,
+        })
+    orphans = [r for r in result if r["incoming"] == 0]
+    return {"total": len(result), "orphans": orphans, "posts": result}
+
+def linking_fix_stream(wfile):
+    """Streamer fix-log mens forældreløse indlæg linkes op. Skriver direkte til wfile."""
+    def w(msg):
+        try:
+            wfile.write((msg + "\n").encode())
+            wfile.flush()
+        except Exception:
+            pass
+
+    all_posts = _lk_fetch_all()
+    orphans   = [p for p in all_posts if _lk_count_incoming(p, all_posts) == 0]
+    w(f"Hentede {len(all_posts)} indlæg — {len(orphans)} forældreløse\n")
+
+    ok, skipped = 0, []
+    for i, target in enumerate(orphans, 1):
+        tid   = target["id"]
+        title = (target.get("title",{}).get("rendered","") if isinstance(target.get("title"),dict) else target.get("title",""))[:55]
+        turl  = target.get("link","")
+        w(f"[{i}/{len(orphans)}] #{tid} {title}")
+
+        result = _lk_find_donor(target, all_posts)
+        if not result:
+            w(f"  ⚠️  Ingen egnet donor\n")
+            skipped.append(tid)
+            continue
+
+        donor, find_text = result
+        did    = donor["id"]
+        dtitle = (donor.get("title",{}).get("rendered","") if isinstance(donor.get("title"),dict) else donor.get("title",""))[:45]
+        content     = _lk_raw(donor)
+        new_content = _lk_insert(content, find_text, turl)
+
+        if new_content == content:
+            w(f"  ⚠️  Kunne ikke indsætte link i #{did}\n")
+            skipped.append(tid)
+            continue
+
+        r = requests.post(f"{WP_BASE}/posts/{did}", auth=wp_auth(),
+                          json={"content": new_content}, timeout=30)
+        if r.status_code == 200:
+            if isinstance(donor.get("content"), dict):
+                donor["content"]["raw"] = new_content
+            else:
+                donor["content"] = new_content
+            w(f"  ✅ Link fra #{did} '{dtitle}'\n")
+            ok += 1
+        else:
+            w(f"  ❌ Gem fejlede for #{did} (HTTP {r.status_code})\n")
+            skipped.append(tid)
+
+        import time as _t; _t.sleep(0.5)
+
+    w(f"\n{'='*50}")
+    w(f"Færdig: {ok}/{len(orphans)} links tilføjet")
+    if skipped:
+        w(f"Sprunget over: {skipped}")
 
 
 def fetch_posts():
@@ -769,6 +1063,36 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_response(500)
                 self.end_headers()
                 self.wfile.write(str(e).encode())
+        elif path == "/api/linking/audit":
+            try:
+                body = json.dumps(linking_audit()).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            except Exception as e:
+                self.send_response(500)
+                self.end_headers()
+                self.wfile.write(str(e).encode())
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def do_POST(self):
+        path = urlparse(self.path).path
+        if path == "/api/linking/fix":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Transfer-Encoding", "chunked")
+            self.end_headers()
+            try:
+                linking_fix_stream(self.wfile)
+            except Exception as e:
+                try:
+                    self.wfile.write(f"\nFejl: {e}\n".encode())
+                except Exception:
+                    pass
         else:
             self.send_response(404)
             self.end_headers()
