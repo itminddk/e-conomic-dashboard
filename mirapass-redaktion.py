@@ -4,19 +4,36 @@ Kør: python3 mirapass-redaktion.py
 Åbner automatisk http://localhost:7771 i browseren.
 """
 
-import json, os, webbrowser, threading, time
+import json, os, subprocess, webbrowser, threading, time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse
 import requests
 
-CREDS_FILE = os.path.expanduser("~/.config/mirapass/wp.credentials")
 WP_BASE = "https://mirapass.dk/wp-json/wp/v2"
 
 
 def wp_auth() -> tuple:
-    with open(CREDS_FILE) as f:
-        user, password = f.read().strip().split(":", 1)
-    return (user, password)
+    """Henter WP-credentials fra macOS Keychain (eller fil som fallback)."""
+    try:
+        r = subprocess.run(
+            ["security", "find-generic-password", "-s", "mirapass-wp", "-g"],
+            capture_output=True, text=True)
+        if r.returncode == 0:
+            acct_line = next((l for l in r.stdout.splitlines() if '"acct"' in l), "")
+            user = acct_line.split('"')[-2] if acct_line else ""
+            pw_r = subprocess.run(
+                ["security", "find-generic-password", "-s", "mirapass-wp", "-w"],
+                capture_output=True, text=True)
+            pw = pw_r.stdout.strip()
+            if user and pw:
+                return (user, pw)
+    except Exception:
+        pass
+    # Fallback: plaintext fil
+    creds_file = os.path.expanduser("~/.config/mirapass/wp.credentials")
+    with open(creds_file) as f:
+        user, pw = f.read().strip().split(":", 1)
+    return (user, pw)
 
 HTML = r"""<!DOCTYPE html>
 <html lang="da">
