@@ -771,7 +771,15 @@ function renderLinking() {
         <div style="font-size:.78rem;color:var(--muted);margin-bottom:.4rem">Forældreløse indlæg</div>
         <div style="font-size:1.9rem;font-weight:700;color:${orphans.length===0?'#3fb950':'#f85149'}">${orphans.length}</div>
       </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1.25rem 1.75rem;min-width:180px">
+        <div style="font-size:.78rem;color:var(--muted);margin-bottom:.4rem">Maks. nye links pr. kørsel</div>
+        <input id="build-limit" type="number" value="10" min="1" max="100"
+          style="width:70px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:.3rem .5rem;font-size:1rem">
+      </div>
       <div style="display:flex;flex-direction:column;gap:.6rem;justify-content:center">
+        <button onclick="runLinkingBuild()" style="background:#238636;color:#fff;border:none;border-radius:6px;padding:.55rem 1.2rem;cursor:pointer;font-size:.88rem">
+          🔗 Byg interne links
+        </button>
         <button onclick="runLinkingFix()" ${orphans.length===0?'disabled':''} style="background:var(--accent);color:#fff;border:none;border-radius:6px;padding:.55rem 1.2rem;cursor:pointer;font-size:.88rem;opacity:${orphans.length===0?'.4':'1'}">
           ⚡ Fix forældreløse (${orphans.length})
         </button>
@@ -809,6 +817,28 @@ async function runLinkingFix() {
 
   try {
     const res = await fetch('/api/linking/fix', { method: 'POST' });
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      log.textContent += decoder.decode(value);
+      log.scrollTop = log.scrollHeight;
+    }
+    log.textContent += '\nFærdig — genindlæser analyse…\n';
+    await loadLinking();
+  } catch(e) {
+    log.textContent += 'Fejl: ' + e.message;
+  }
+}
+
+async function runLinkingBuild() {
+  const log = document.getElementById('linking-log');
+  const limit = parseInt(document.getElementById('build-limit').value) || 10;
+  log.style.display = 'block';
+  log.textContent = 'Bygger interne links…\n';
+  try {
+    const res = await fetch('/api/linking/build?limit=' + limit, { method: 'POST' });
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     while (true) {
@@ -1014,6 +1044,65 @@ def linking_fix_stream(wfile):
         w(f"Sprunget over: {skipped}")
 
 
+def linking_build_stream(wfile, limit=10):
+    """
+    Kører én runde generel link-building på alle indlæg.
+    For hvert target-indlæg: find bedste donor der ikke allerede linker til det.
+    Stopper efter `limit` nye links er tilføjet.
+    """
+    def w(msg):
+        try:
+            wfile.write((msg + "\n").encode())
+            wfile.flush()
+        except Exception:
+            pass
+
+    all_posts = _lk_fetch_all()
+    w(f"Hentede {len(all_posts)} indlæg — søger link-muligheder (maks {limit})\n")
+
+    # Sorter targets: færrest indgående links først (de har mest brug for links)
+    targets = sorted(all_posts, key=lambda p: _lk_count_incoming(p, all_posts))
+
+    added = 0
+    for target in targets:
+        if added >= limit:
+            break
+        tid   = target["id"]
+        slug  = target.get("slug", "")
+        turl  = target.get("link", "")
+        title = (target.get("title", {}).get("rendered", "") if isinstance(target.get("title"), dict) else target.get("title", ""))[:55]
+
+        result = _lk_find_donor(target, all_posts)
+        if not result:
+            continue
+
+        donor, find_text = result
+        did    = donor["id"]
+        dtitle = (donor.get("title", {}).get("rendered", "") if isinstance(donor.get("title"), dict) else donor.get("title", ""))[:40]
+        content     = _lk_raw(donor)
+        new_content = _lk_insert(content, find_text, turl)
+
+        if new_content == content:
+            continue
+
+        r = requests.post(f"{WP_BASE}/posts/{did}", auth=wp_auth(),
+                          json={"content": new_content}, timeout=30)
+        if r.status_code == 200:
+            if isinstance(donor.get("content"), dict):
+                donor["content"]["raw"] = new_content
+            else:
+                donor["content"] = new_content
+            w(f"✅ #{tid} '{title[:45]}'\n   ← link fra #{did} '{dtitle}'\n")
+            added += 1
+        else:
+            w(f"❌ Gem fejlede for #{did} (HTTP {r.status_code})\n")
+
+        import time as _t; _t.sleep(0.4)
+
+    w(f"\n{'='*50}")
+    w(f"Færdig: {added} nye links tilføjet")
+
+
 def fetch_posts():
     resp = requests.get(
         f"{WP_BASE}/posts",
@@ -1078,22 +1167,29 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def do_POST(self):
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path   = parsed.path
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.end_headers()
         if path == "/api/linking/fix":
-            self.send_response(200)
-            self.send_header("Content-Type", "text/plain; charset=utf-8")
-            self.send_header("Transfer-Encoding", "chunked")
-            self.end_headers()
             try:
                 linking_fix_stream(self.wfile)
             except Exception as e:
-                try:
-                    self.wfile.write(f"\nFejl: {e}\n".encode())
-                except Exception:
-                    pass
+                try: self.wfile.write(f"\nFejl: {e}\n".encode())
+                except Exception: pass
+        elif path == "/api/linking/build":
+            try:
+                from urllib.parse import parse_qs
+                qs    = parse_qs(parsed.query)
+                limit = int(qs.get("limit", ["10"])[0])
+                linking_build_stream(self.wfile, limit=limit)
+            except Exception as e:
+                try: self.wfile.write(f"\nFejl: {e}\n".encode())
+                except Exception: pass
         else:
-            self.send_response(404)
-            self.end_headers()
+            try: self.wfile.write(b"404\n")
+            except Exception: pass
 
 
 PORT = 7771
