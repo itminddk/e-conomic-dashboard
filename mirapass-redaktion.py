@@ -749,14 +749,26 @@ function renderLinking() {
     </tr>`).join('');
 
   const allRows = posts
-    .slice().sort((a,b) => a.incoming - b.incoming)
-    .map(p => `
+    .slice().sort((a,b) => (a.incoming + a.outgoing) - (b.incoming + b.outgoing))
+    .map(p => {
+      const total = p.incoming + p.outgoing;
+      const totalColor = total === 0 ? '#f85149' : total < 3 ? '#d29922' : total < 6 ? '#58a6ff' : '#3fb950';
+      const inColor = p.incoming === 0 ? '#f85149' : p.incoming < 3 ? '#d29922' : '#3fb950';
+      const bar = Math.min(total, 10);
+      const barPct = bar * 10;
+      return `
     <tr>
       <td><a href="${p.url}" target="_blank" style="color:var(--accent)">#${p.id}</a></td>
       <td>${p.title}</td>
-      <td style="text-align:center;color:${p.incoming===0?'#f85149':p.incoming<3?'#d29922':'#3fb950'}">${p.incoming}</td>
+      <td style="text-align:center;color:${inColor}">${p.incoming}</td>
       <td style="text-align:center;color:var(--muted)">${p.outgoing}</td>
-    </tr>`).join('');
+      <td style="text-align:center">
+        <span style="font-weight:600;color:${totalColor}">${total}</span>
+        <div style="margin-top:3px;background:var(--border);border-radius:3px;height:4px;width:60px;display:inline-block;vertical-align:middle;margin-left:6px">
+          <div style="width:${barPct}%;max-width:100%;background:${totalColor};height:4px;border-radius:3px"></div>
+        </div>
+      </td>
+    </tr>`;}).join('');
 
   pane.innerHTML = `
     <div style="display:flex;gap:2rem;flex-wrap:wrap;margin-bottom:1.5rem">
@@ -803,8 +815,9 @@ function renderLinking() {
       <thead><tr>
         <th style="width:60px">ID</th>
         <th>Titel</th>
-        <th style="text-align:center;width:80px">Ind</th>
-        <th style="text-align:center;width:80px">Ud</th>
+        <th style="text-align:center;width:60px">Ind ↓</th>
+        <th style="text-align:center;width:60px">Ud ↑</th>
+        <th style="text-align:center;width:140px">Total links</th>
       </tr></thead>
       <tbody>${allRows}</tbody>
     </table>`;
