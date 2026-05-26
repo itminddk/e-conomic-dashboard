@@ -685,10 +685,14 @@ function renderSEO() {
     const sc = scoreClass(score, maxScore);
     const pct = Math.round(score/maxScore*100);
     const chips = checks.map(checkChip).join(' ');
+    const badge = p.status === 'publish'
+      ? '<span class="tl-badge badge-publish">Udgivet</span>'
+      : '<span class="tl-badge badge-future">Planlagt</span>';
     return `<tr>
       <td style="text-align:center"><div class="seo-score ${sc}">${pct}%</div></td>
       <td>${priorityLabel(score, maxScore)}</td>
       <td style="font-size:.85rem"><a href="https://mirapass.dk/${p.slug}/" target="_blank" style="color:var(--text);text-decoration:none;font-weight:500" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${p.title} <span style="color:var(--muted);font-size:.75rem">↗</span></a></td>
+      <td>${badge}</td>
       <td style="font-size:.78rem;color:var(--muted)">${wc.toLocaleString('da-DK')}</td>
       <td style="white-space:nowrap;line-height:1.9">${chips}</td>
     </tr>`;
@@ -724,6 +728,7 @@ function renderSEO() {
         <th style="width:60px;text-align:center">${sortBtn('score','Score')}</th>
         <th style="width:100px">Prioritet</th>
         <th>${sortBtn('title','Titel')}</th>
+        <th style="width:90px">Status</th>
         <th style="width:80px">${sortBtn('wc','Ord')}</th>
         <th>Tjek</th>
       </tr></thead>
