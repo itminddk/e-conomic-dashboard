@@ -763,7 +763,7 @@ function renderLinking() {
   const orphanRows = orphans.map(p => `
     <tr>
       <td><a href="${p.url}" target="_blank" style="color:var(--accent)">#${p.id}</a></td>
-      <td>${p.title}</td>
+      <td><a href="${p.url}" target="_blank" style="color:var(--text);text-decoration:none;font-weight:500">${p.title}</a></td>
       <td style="color:var(--muted);font-size:.8rem">${p.slug}</td>
     </tr>`).join('');
 
@@ -778,7 +778,7 @@ function renderLinking() {
       return `
     <tr>
       <td><a href="${p.url}" target="_blank" style="color:var(--accent)">#${p.id}</a></td>
-      <td>${p.title}</td>
+      <td><a href="${p.url}" target="_blank" style="color:var(--text);text-decoration:none;font-weight:500">${p.title}</a></td>
       <td style="text-align:center;color:${inColor}">${p.incoming}</td>
       <td style="text-align:center;color:var(--muted)">${p.outgoing}</td>
       <td style="text-align:center">
