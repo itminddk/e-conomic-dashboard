@@ -704,9 +704,9 @@ function renderSEO() {
     </div>
     <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;flex-wrap:wrap">
       <button onclick="runSeoGenerate()" style="background:#238636;color:#fff;border:none;border-radius:6px;padding:.5rem 1.1rem;cursor:pointer;font-size:.88rem">
-        ✨ Generer manglende SEO-felter
+        ✨ Generer og forbedr SEO-felter
       </button>
-      <span style="font-size:.8rem;color:var(--muted)">Udfylder automatisk meta title, meta beskrivelse og excerpt hvor de mangler</span>
+      <span style="font-size:.8rem;color:var(--muted)">Udfylder manglende + forbedrer for korte/lange meta title, meta beskrivelse og excerpt</span>
     </div>
     <div id="seo-gen-log" style="display:none;background:#0d1117;border:1px solid var(--border);border-radius:6px;padding:1rem;margin-bottom:1rem;font-family:monospace;font-size:.8rem;max-height:200px;overflow-y:auto;color:#e6edf3;white-space:pre-wrap"></div>
     <div class="seo-filter-bar">
@@ -1120,23 +1120,31 @@ def seo_generate_stream(wfile):
                                 "status": "publish"}, timeout=30)
     posts = resp.json()
 
-    # Find dem med mangler
+    # Find indlæg der mangler felter ELLER kan forbedres
     needs = []
     for p in posts:
-        m        = p.get("meta", {}) or {}
-        mt       = (m.get("_yoast_wpseo_title",    "") or "").strip()
-        md       = (m.get("_yoast_wpseo_metadesc", "") or "").strip()
-        exc      = (p.get("excerpt", {}).get("raw", "") or "").strip()
-        missing  = []
-        if not mt:  missing.append("meta_title")
-        if not md:  missing.append("meta_desc")
-        if not exc: missing.append("excerpt")
-        if missing:
-            needs.append((p, missing))
+        m   = p.get("meta", {}) or {}
+        mt  = (m.get("_yoast_wpseo_title",    "") or "").strip()
+        md  = (m.get("_yoast_wpseo_metadesc", "") or "").strip()
+        exc = (p.get("excerpt", {}).get("raw", "") or "").strip()
+        issues = {}
+        # Mangler helt
+        if not mt:  issues["meta_title"] = ("mangler", "")
+        if not md:  issues["meta_desc"]  = ("mangler", "")
+        if not exc: issues["excerpt"]    = ("mangler", "")
+        # Kan forbedres (findes men er udenfor optimal længde)
+        if mt  and len(mt) > 60:              issues["meta_title"] = ("for lang",   mt)
+        if md  and len(md) < 70:              issues["meta_desc"]  = ("for kort",   md)
+        if md  and len(md) > 155:             issues["meta_desc"]  = ("for lang",   md)
+        if issues:
+            needs.append((p, issues))
 
-    w(f"Fandt {len(needs)} indlæg med manglende SEO-felter\n")
+    missing_cnt  = sum(1 for _, iss in needs if any(s=="mangler"  for s,_ in iss.values()))
+    improve_cnt  = sum(1 for _, iss in needs if any(s!="mangler"  for s,_ in iss.values()))
+    w(f"Fandt {len(needs)} indlæg der skal opdateres "
+      f"({missing_cnt} mangler felt, {improve_cnt} kan forbedres)\n")
     if not needs:
-        w("✅ Alle indlæg har meta title, meta beskrivelse og excerpt!")
+        w("✅ Alle indlæg har korrekte meta title, meta beskrivelse og excerpt!")
         return
 
     gemini_url = (
@@ -1146,15 +1154,35 @@ def seo_generate_stream(wfile):
     api_key = _gemini_key()
 
     ok = 0
-    for i, (p, missing) in enumerate(needs, 1):
+    for i, (p, issues) in enumerate(needs, 1):
         pid   = p["id"]
         title = p.get("title", {}).get("rendered", "") or p.get("title", "")
         slug  = p.get("slug", "")
         raw   = (p.get("content", {}).get("raw", "") or "")
         plain = _re.sub(r'<[^>]+>', ' ', raw)
         plain = _re.sub(r'\s+', ' ', plain).strip()[:1200]
-        missing_str = ", ".join(missing)
-        w(f"[{i}/{len(needs)}] #{pid} {title[:55]} — mangler: {missing_str}")
+
+        issues_str = ", ".join(f'{k} ({v})' for k, (v, _) in issues.items())
+        w(f"[{i}/{len(needs)}] #{pid} {title[:55]}")
+        w(f"  → {issues_str}")
+
+        # Byg beskrivelse af eksisterende (dårlige) værdier til Gemini
+        existing_notes = []
+        for field, (status, val) in issues.items():
+            if val:
+                existing_notes.append(f'  Nuværende {field} ({status}): "{val}"')
+        existing_block = "\n".join(existing_notes) if existing_notes else "  (ingen eksisterende værdier)"
+
+        # Byg felter der skal genereres
+        fields_needed = list(issues.keys())
+        json_fields = {}
+        if "meta_title" in fields_needed:
+            json_fields["meta_title"] = "SEO-titel max 60 tegn, slut med | Mirapass"
+        if "meta_desc" in fields_needed:
+            json_fields["meta_desc"] = "Meta-beskrivelse 120-155 tegn, naturlig og klikvenlig"
+        if "excerpt" in fields_needed:
+            json_fields["excerpt"] = "Kort resumé 1-2 sætninger til kortlistevisning"
+        json_template = _json.dumps(json_fields, ensure_ascii=False, indent=2)
 
         prompt = f"""Du er SEO-redaktør for mirapass.dk (dansk blog om Claude AI).
 
@@ -1163,16 +1191,15 @@ Titel: {title}
 Slug: {slug}
 Indhold (uddrag): {plain}
 
-Generer følgende felter på DANSK og returner KUN valid JSON:
-{{
-  "meta_title": "SEO-titel max 60 tegn, slut med | Mirapass",
-  "meta_desc": "Meta-beskrivelse 120-155 tegn, naturlig og klikvenlig",
-  "excerpt": "Kort resumé 1-2 sætninger til kortlistevisning"
-}}
+Eksisterende felter der skal forbedres:
+{existing_block}
+
+Generer KUN disse felter på DANSK og returner valid JSON:
+{json_template}
 
 Regler:
 - meta_title: max 60 tegn inkl. ' | Mirapass'
-- meta_desc: 120-155 tegn
+- meta_desc: præcis 120-155 tegn — tæl tegnene!
 - excerpt: 150-250 tegn, ingen HTML
 - Sprog: dansk, professionelt men tilgængeligt
 - Returner KUN JSON, ingen forklaring"""
@@ -1186,7 +1213,6 @@ Regler:
             )
             raw_resp = r.json()
             text = raw_resp["candidates"][0]["content"]["parts"][0]["text"]
-            # Rens eventuelle markdown-blokke
             text = _re.sub(r'^```(?:json)?\s*', '', text.strip(), flags=_re.MULTILINE)
             text = _re.sub(r'\s*```$', '', text.strip(), flags=_re.MULTILINE)
             generated = _json.loads(text.strip())
@@ -1194,28 +1220,24 @@ Regler:
             w(f"  ⚠️  Gemini fejl: {e}\n")
             continue
 
-        # Gem kun de felter der faktisk mangler
         meta_patch = {}
-        if "meta_title" in missing:
+        if "meta_title" in issues:
             meta_patch["_yoast_wpseo_title"] = generated.get("meta_title", "")
-        if "meta_desc" in missing:
+        if "meta_desc" in issues:
             meta_patch["_yoast_wpseo_metadesc"] = generated.get("meta_desc", "")
 
         payload = {}
         if meta_patch:
             payload["meta"] = meta_patch
-        if "excerpt" in missing:
+        if "excerpt" in issues:
             payload["excerpt"] = generated.get("excerpt", "")
 
         save = requests.post(f"{WP_BASE}/posts/{pid}", auth=wp_auth(),
                              json=payload, timeout=30)
         if save.status_code == 200:
-            if "meta_title" in missing:
-                w(f'  meta title:  {generated.get("meta_title","")[:60]}')
-            if "meta_desc" in missing:
-                w(f'  meta desc:   {generated.get("meta_desc","")[:80]}…')
-            if "excerpt" in missing:
-                w(f'  excerpt:     {generated.get("excerpt","")[:80]}…')
+            for field in fields_needed:
+                val = generated.get(field, "")
+                w(f'  {field}: "{val[:75]}"  ({len(val)} tegn)')
             w(f"  ✅ Gemt\n")
             ok += 1
         else:
