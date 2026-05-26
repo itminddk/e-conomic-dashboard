@@ -12,6 +12,18 @@ import requests
 WP_BASE = "https://mirapass.dk/wp-json/wp/v2"
 
 
+def _gemini_key() -> str:
+    """Henter Gemini API-nøgle fra macOS Keychain (eller fil som fallback)."""
+    r = subprocess.run(
+        ["security", "find-generic-password", "-s", "mirapass-gemini", "-w"],
+        capture_output=True, text=True)
+    if r.returncode == 0 and r.stdout.strip():
+        return r.stdout.strip()
+    gemini_file = os.path.expanduser("~/.config/mirapass/gemini.key")
+    with open(gemini_file) as f:
+        return f.read().strip()
+
+
 def wp_auth() -> tuple:
     """Henter WP-credentials fra macOS Keychain (eller fil som fallback)."""
     try:
@@ -690,6 +702,13 @@ function renderSEO() {
       <div class="seo-card orange"><div class="seo-card-val">${missing('kw')}</div><div class="seo-card-lbl">Mangler nøgleord</div></div>
       <div class="seo-card orange"><div class="seo-card-val">${missing('img')}</div><div class="seo-card-lbl">Mangler billede</div></div>
     </div>
+    <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;flex-wrap:wrap">
+      <button onclick="runSeoGenerate()" style="background:#238636;color:#fff;border:none;border-radius:6px;padding:.5rem 1.1rem;cursor:pointer;font-size:.88rem">
+        ✨ Generer manglende SEO-felter
+      </button>
+      <span style="font-size:.8rem;color:var(--muted)">Udfylder automatisk meta title, meta beskrivelse og excerpt hvor de mangler</span>
+    </div>
+    <div id="seo-gen-log" style="display:none;background:#0d1117;border:1px solid var(--border);border-radius:6px;padding:1rem;margin-bottom:1rem;font-family:monospace;font-size:.8rem;max-height:200px;overflow-y:auto;color:#e6edf3;white-space:pre-wrap"></div>
     <div class="seo-filter-bar">
       <input id="seo-filter-q" placeholder="Søg opslag…" value="${q}" oninput="renderSEO()">
       <select id="seo-priority" onchange="renderSEO()">
@@ -862,6 +881,29 @@ async function runLinkingBuild() {
     }
     log.textContent += '\nFærdig — genindlæser analyse…\n';
     await loadLinking();
+  } catch(e) {
+    log.textContent += 'Fejl: ' + e.message;
+  }
+}
+
+/* ── SEO generator ────────────────────── */
+async function runSeoGenerate() {
+  const log = document.getElementById('seo-gen-log');
+  log.style.display = 'block';
+  log.textContent = 'Analyserer indlæg…\n';
+  try {
+    const res = await fetch('/api/seo/generate', { method: 'POST' });
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      log.textContent += decoder.decode(value);
+      log.scrollTop = log.scrollHeight;
+    }
+    log.textContent += '\nFærdig — genindlæser opslag…\n';
+    await loadPosts();
+    renderSEO();
   } catch(e) {
     log.textContent += 'Fejl: ' + e.message;
   }
@@ -1057,6 +1099,134 @@ def linking_fix_stream(wfile):
         w(f"Sprunget over: {skipped}")
 
 
+def seo_generate_stream(wfile):
+    """
+    Finder indlæg med manglende meta title, meta beskrivelse eller excerpt
+    og genererer dem via Gemini. Streamer log til wfile.
+    """
+    import re as _re
+    import json as _json
+
+    def w(msg):
+        try:
+            wfile.write((msg + "\n").encode())
+            wfile.flush()
+        except Exception:
+            pass
+
+    # Hent alle indlæg med fuld context
+    resp = requests.get(f"{WP_BASE}/posts", auth=wp_auth(),
+                        params={"per_page": 100, "context": "edit",
+                                "status": "publish"}, timeout=30)
+    posts = resp.json()
+
+    # Find dem med mangler
+    needs = []
+    for p in posts:
+        m        = p.get("meta", {}) or {}
+        mt       = (m.get("_yoast_wpseo_title",    "") or "").strip()
+        md       = (m.get("_yoast_wpseo_metadesc", "") or "").strip()
+        exc      = (p.get("excerpt", {}).get("raw", "") or "").strip()
+        missing  = []
+        if not mt:  missing.append("meta_title")
+        if not md:  missing.append("meta_desc")
+        if not exc: missing.append("excerpt")
+        if missing:
+            needs.append((p, missing))
+
+    w(f"Fandt {len(needs)} indlæg med manglende SEO-felter\n")
+    if not needs:
+        w("✅ Alle indlæg har meta title, meta beskrivelse og excerpt!")
+        return
+
+    gemini_url = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        "gemini-2.0-flash:generateContent"
+    )
+    api_key = _gemini_key()
+
+    ok = 0
+    for i, (p, missing) in enumerate(needs, 1):
+        pid   = p["id"]
+        title = p.get("title", {}).get("rendered", "") or p.get("title", "")
+        slug  = p.get("slug", "")
+        raw   = (p.get("content", {}).get("raw", "") or "")
+        plain = _re.sub(r'<[^>]+>', ' ', raw)
+        plain = _re.sub(r'\s+', ' ', plain).strip()[:1200]
+        missing_str = ", ".join(missing)
+        w(f"[{i}/{len(needs)}] #{pid} {title[:55]} — mangler: {missing_str}")
+
+        prompt = f"""Du er SEO-redaktør for mirapass.dk (dansk blog om Claude AI).
+
+Indlæg:
+Titel: {title}
+Slug: {slug}
+Indhold (uddrag): {plain}
+
+Generer følgende felter på DANSK og returner KUN valid JSON:
+{{
+  "meta_title": "SEO-titel max 60 tegn, slut med | Mirapass",
+  "meta_desc": "Meta-beskrivelse 120-155 tegn, naturlig og klikvenlig",
+  "excerpt": "Kort resumé 1-2 sætninger til kortlistevisning"
+}}
+
+Regler:
+- meta_title: max 60 tegn inkl. ' | Mirapass'
+- meta_desc: 120-155 tegn
+- excerpt: 150-250 tegn, ingen HTML
+- Sprog: dansk, professionelt men tilgængeligt
+- Returner KUN JSON, ingen forklaring"""
+
+        try:
+            r = requests.post(
+                f"{gemini_url}?key={api_key}",
+                json={"contents": [{"parts": [{"text": prompt}]}],
+                      "generationConfig": {"temperature": 0.4}},
+                timeout=30,
+            )
+            raw_resp = r.json()
+            text = raw_resp["candidates"][0]["content"]["parts"][0]["text"]
+            # Rens eventuelle markdown-blokke
+            text = _re.sub(r'^```(?:json)?\s*', '', text.strip(), flags=_re.MULTILINE)
+            text = _re.sub(r'\s*```$', '', text.strip(), flags=_re.MULTILINE)
+            generated = _json.loads(text.strip())
+        except Exception as e:
+            w(f"  ⚠️  Gemini fejl: {e}\n")
+            continue
+
+        # Gem kun de felter der faktisk mangler
+        meta_patch = {}
+        if "meta_title" in missing:
+            meta_patch["_yoast_wpseo_title"] = generated.get("meta_title", "")
+        if "meta_desc" in missing:
+            meta_patch["_yoast_wpseo_metadesc"] = generated.get("meta_desc", "")
+
+        payload = {}
+        if meta_patch:
+            payload["meta"] = meta_patch
+        if "excerpt" in missing:
+            payload["excerpt"] = generated.get("excerpt", "")
+
+        save = requests.post(f"{WP_BASE}/posts/{pid}", auth=wp_auth(),
+                             json=payload, timeout=30)
+        if save.status_code == 200:
+            if "meta_title" in missing:
+                w(f'  meta title:  {generated.get("meta_title","")[:60]}')
+            if "meta_desc" in missing:
+                w(f'  meta desc:   {generated.get("meta_desc","")[:80]}…')
+            if "excerpt" in missing:
+                w(f'  excerpt:     {generated.get("excerpt","")[:80]}…')
+            w(f"  ✅ Gemt\n")
+            ok += 1
+        else:
+            w(f"  ❌ Gem fejlede (HTTP {save.status_code})\n")
+
+        import time as _t; _t.sleep(0.8)
+
+    w(f"{'='*50}")
+    w(f"Færdig: {ok}/{len(needs)} indlæg opdateret")
+
+
 def linking_build_stream(wfile, limit=10):
     """
     Kører én runde generel link-building på alle indlæg.
@@ -1185,7 +1355,13 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "text/plain; charset=utf-8")
         self.end_headers()
-        if path == "/api/linking/fix":
+        if path == "/api/seo/generate":
+            try:
+                seo_generate_stream(self.wfile)
+            except Exception as e:
+                try: self.wfile.write(f"\nFejl: {e}\n".encode())
+                except Exception: pass
+        elif path == "/api/linking/fix":
             try:
                 linking_fix_stream(self.wfile)
             except Exception as e:
