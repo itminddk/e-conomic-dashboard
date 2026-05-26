@@ -688,7 +688,7 @@ function renderSEO() {
     return `<tr>
       <td style="text-align:center"><div class="seo-score ${sc}">${pct}%</div></td>
       <td>${priorityLabel(score, maxScore)}</td>
-      <td style="font-size:.85rem"><a href="https://mirapass.dk/${p.slug}/" target="_blank" style="color:var(--text);text-decoration:none;font-weight:500">${p.title}</a></td>
+      <td style="font-size:.85rem"><a href="https://mirapass.dk/${p.slug}/" target="_blank" style="color:var(--text);text-decoration:none;font-weight:500" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${p.title} <span style="color:var(--muted);font-size:.75rem">↗</span></a></td>
       <td style="font-size:.78rem;color:var(--muted)">${wc.toLocaleString('da-DK')}</td>
       <td style="white-space:nowrap;line-height:1.9">${chips}</td>
     </tr>`;
