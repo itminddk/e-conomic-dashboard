@@ -4,9 +4,9 @@ Kør: python3 mirapass-redaktion.py
 Åbner automatisk http://localhost:7771 i browseren.
 """
 
-import json, os, subprocess, webbrowser, threading, time
+import json, os, subprocess, webbrowser, threading, time, secrets, urllib.parse
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 import requests
 
 WP_BASE = "https://mirapass.dk/wp-json/wp/v2"
@@ -22,6 +22,106 @@ def _gemini_key() -> str:
     gemini_file = os.path.expanduser("~/.config/mirapass/gemini.key")
     with open(gemini_file) as f:
         return f.read().strip()
+
+
+# ── Google Search Console OAuth2 ─────────────────────────────────────────────
+
+GSC_CREDS_FILE  = os.path.expanduser("~/.config/mirapass/gsc_client.json")
+GSC_KEYCHAIN    = "mirapass-gsc"
+GSC_REDIRECT    = "http://localhost:7771/oauth2callback"
+GSC_SCOPES      = "https://www.googleapis.com/auth/webmasters.readonly"
+_gsc_oauth_state = {}   # temp state: {state: client_info}
+
+def _gsc_client_info():
+    with open(GSC_CREDS_FILE) as f:
+        raw = json.load(f)
+    key = list(raw.keys())[0]
+    return raw[key]
+
+def _gsc_token():
+    """Henter gemt GSC token fra Keychain. Returnerer None hvis ikke autoriseret."""
+    r = subprocess.run(
+        ["security", "find-generic-password", "-s", GSC_KEYCHAIN, "-a", "oauth2", "-w"],
+        capture_output=True, text=True)
+    if r.returncode == 0 and r.stdout.strip():
+        return json.loads(r.stdout.strip())
+    return None
+
+def _gsc_save_token(token_data: dict):
+    subprocess.run(
+        ["security", "add-generic-password", "-s", GSC_KEYCHAIN,
+         "-a", "oauth2", "-w", json.dumps(token_data), "-U"],
+        capture_output=True)
+
+def _gsc_refresh(token_data: dict) -> dict:
+    """Fornyer access token via refresh token."""
+    c = _gsc_client_info()
+    r = requests.post("https://oauth2.googleapis.com/token", data={
+        "client_id":     c["client_id"],
+        "client_secret": c["client_secret"],
+        "refresh_token": token_data["refresh_token"],
+        "grant_type":    "refresh_token",
+    }, timeout=15)
+    new = r.json()
+    token_data["access_token"] = new["access_token"]
+    _gsc_save_token(token_data)
+    return token_data
+
+def gsc_auth_url() -> str:
+    """Genererer Google OAuth URL og gemmer state."""
+    c = _gsc_client_info()
+    state = secrets.token_urlsafe(16)
+    _gsc_oauth_state[state] = c
+    params = urllib.parse.urlencode({
+        "client_id":     c["client_id"],
+        "redirect_uri":  GSC_REDIRECT,
+        "response_type": "code",
+        "scope":         GSC_SCOPES,
+        "access_type":   "offline",
+        "prompt":        "consent",
+        "state":         state,
+    })
+    return f"https://accounts.google.com/o/oauth2/v2/auth?{params}"
+
+def gsc_handle_callback(code: str, state: str) -> bool:
+    """Udveksler auth-kode for tokens og gemmer i Keychain."""
+    c = _gsc_oauth_state.pop(state, None) or _gsc_client_info()
+    r = requests.post("https://oauth2.googleapis.com/token", data={
+        "client_id":     c["client_id"],
+        "client_secret": c["client_secret"],
+        "code":          code,
+        "redirect_uri":  GSC_REDIRECT,
+        "grant_type":    "authorization_code",
+    }, timeout=15)
+    data = r.json()
+    if "refresh_token" not in data:
+        return False
+    _gsc_save_token({
+        "access_token":  data["access_token"],
+        "refresh_token": data["refresh_token"],
+        "client_id":     c["client_id"],
+        "client_secret": c["client_secret"],
+    })
+    return True
+
+def gsc_fetch(site: str, start: str, end: str, dims: list) -> dict:
+    """Kalder Search Console API og returnerer rows."""
+    token = _gsc_token()
+    if not token:
+        return {"error": "ikke_autoriseret"}
+    headers = {"Authorization": f"Bearer {token['access_token']}"}
+    body = {"startDate": start, "endDate": end,
+            "dimensions": dims, "rowLimit": 500}
+    r = requests.post(
+        f"https://searchconsole.googleapis.com/webmasters/v3/sites/{urllib.parse.quote(site, safe='')}/searchAnalytics/query",
+        headers=headers, json=body, timeout=30)
+    if r.status_code == 401:
+        token = _gsc_refresh(token)
+        headers["Authorization"] = f"Bearer {token['access_token']}"
+        r = requests.post(
+            f"https://searchconsole.googleapis.com/webmasters/v3/sites/{urllib.parse.quote(site, safe='')}/searchAnalytics/query",
+            headers=headers, json=body, timeout=30)
+    return r.json()
 
 
 def wp_auth() -> tuple:
@@ -318,6 +418,7 @@ h2{font-size:1.05rem;font-weight:600}
   <button class="tab" onclick="showTab('table',this)">Alle opslag</button>
   <button class="tab" onclick="showTab('seo',this)">SEO Analyse</button>
   <button class="tab" onclick="showLinking(this)">Intern Linking</button>
+  <button class="tab" onclick="showGSC(this)">Search Console</button>
 </div>
 
 <div id="pane-timeline" class="pane active">
@@ -325,6 +426,7 @@ h2{font-size:1.05rem;font-weight:600}
 </div>
 <div id="pane-seo" class="pane"></div>
 <div id="pane-linking" class="pane"></div>
+<div id="pane-gsc" class="pane"></div>
 
 <div id="pane-table" class="pane">
   <div class="toolbar">
@@ -919,6 +1021,110 @@ function showLinking(btn) {
   if (!linkingData) loadLinking();
 }
 
+/* ── Search Console ───────────────────── */
+let gscData = null;
+
+async function showGSC(btn) {
+  showTab('gsc', btn);
+  const pane = document.getElementById('pane-gsc');
+  if (gscData !== null) return;
+  pane.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Tjekker forbindelse…</div>';
+  const status = await fetch('/api/gsc/status').then(r=>r.json());
+  if (!status.connected) {
+    pane.innerHTML = `
+      <div style="max-width:480px;margin:3rem auto;text-align:center">
+        <div style="font-size:2.5rem;margin-bottom:1rem">🔍</div>
+        <h2 style="margin-bottom:.75rem">Forbind Google Search Console</h2>
+        <p style="color:var(--muted);margin-bottom:1.5rem">Log ind med den Google-konto der har adgang til mirapass.dk i Search Console.</p>
+        <a href="/auth/gsc" style="background:var(--accent);color:#fff;border-radius:6px;padding:.65rem 1.4rem;text-decoration:none;font-size:.95rem">
+          Forbind Google-konto
+        </a>
+      </div>`;
+    return;
+  }
+  loadGSC();
+}
+
+async function loadGSC() {
+  const pane = document.getElementById('pane-gsc');
+  pane.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Henter Search Console data…</div>';
+  const end   = new Date(); end.setDate(end.getDate()-1);
+  const start = new Date(); start.setDate(start.getDate()-29);
+  const fmt = d => d.toISOString().slice(0,10);
+  try {
+    const [byQuery, byPage] = await Promise.all([
+      fetch(`/api/gsc/data?start=${fmt(start)}&end=${fmt(end)}&dims=query`).then(r=>r.json()),
+      fetch(`/api/gsc/data?start=${fmt(start)}&end=${fmt(end)}&dims=page`).then(r=>r.json()),
+    ]);
+    if (byQuery.error === 'ikke_autoriseret') { gscData = null; showGSC(document.querySelector('.tab:last-child')); return; }
+    gscData = { byQuery, byPage, start: fmt(start), end: fmt(end) };
+    renderGSC();
+  } catch(e) {
+    pane.innerHTML = `<p style="color:#f85149;padding:2rem">Fejl: ${e.message}</p>`;
+  }
+}
+
+function renderGSC() {
+  const pane = document.getElementById('pane-gsc');
+  if (!gscData) return;
+  const rows   = gscData.byQuery.rows || [];
+  const pRows  = gscData.byPage.rows  || [];
+
+  const totClicks = rows.reduce((s,r)=>s+r.clicks,0);
+  const totImpr   = rows.reduce((s,r)=>s+r.impressions,0);
+  const avgCtr    = totImpr ? (totClicks/totImpr*100).toFixed(1) : 0;
+  const avgPos    = rows.length ? (rows.reduce((s,r)=>s+r.position,0)/rows.length).toFixed(1) : 0;
+
+  const topQueries = rows.slice().sort((a,b)=>b.clicks-a.clicks).slice(0,20).map(r=>`
+    <tr>
+      <td style="max-width:300px">${r.keys[0]}</td>
+      <td style="text-align:right">${r.clicks}</td>
+      <td style="text-align:right">${r.impressions}</td>
+      <td style="text-align:right">${(r.ctr*100).toFixed(1)}%</td>
+      <td style="text-align:right">${r.position.toFixed(1)}</td>
+    </tr>`).join('');
+
+  const topPages = pRows.slice().sort((a,b)=>b.clicks-a.clicks).slice(0,15).map(r=>{
+    const slug = r.keys[0].replace('https://mirapass.dk','');
+    return `
+    <tr>
+      <td><a href="${r.keys[0]}" target="_blank" style="color:var(--accent);font-size:.82rem">${slug}</a></td>
+      <td style="text-align:right">${r.clicks}</td>
+      <td style="text-align:right">${r.impressions}</td>
+      <td style="text-align:right">${(r.ctr*100).toFixed(1)}%</td>
+      <td style="text-align:right">${r.position.toFixed(1)}</td>
+    </tr>`;}).join('');
+
+  pane.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;gap:.5rem">
+      <span style="font-size:.8rem;color:var(--muted)">${gscData.start} → ${gscData.end} (28 dage)</span>
+      <button onclick="gscData=null;loadGSC()" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:.35rem .8rem;cursor:pointer;font-size:.8rem">↻ Opdater</button>
+    </div>
+    <div style="display:flex;gap:1.25rem;flex-wrap:wrap;margin-bottom:1.75rem">
+      ${[['Klik',totClicks,'#58a6ff'],['Visninger',totImpr,'var(--muted)'],['Gns. CTR',avgCtr+'%','#3fb950'],['Gns. position',avgPos,'#d29922']].map(([l,v,c])=>`
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1rem 1.4rem;min-width:130px">
+        <div style="font-size:.75rem;color:var(--muted);margin-bottom:.3rem">${l}</div>
+        <div style="font-size:1.7rem;font-weight:700;color:${c}">${typeof v==='number'?v.toLocaleString('da-DK'):v}</div>
+      </div>`).join('')}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:2rem;flex-wrap:wrap">
+      <div>
+        <h2 style="margin-bottom:.75rem">Top søgeord</h2>
+        <table style="font-size:.82rem">
+          <thead><tr><th>Søgning</th><th style="text-align:right">Klik</th><th style="text-align:right">Vis.</th><th style="text-align:right">CTR</th><th style="text-align:right">Pos.</th></tr></thead>
+          <tbody>${topQueries}</tbody>
+        </table>
+      </div>
+      <div>
+        <h2 style="margin-bottom:.75rem">Top sider</h2>
+        <table style="font-size:.82rem">
+          <thead><tr><th>Side</th><th style="text-align:right">Klik</th><th style="text-align:right">Vis.</th><th style="text-align:right">CTR</th><th style="text-align:right">Pos.</th></tr></thead>
+          <tbody>${topPages}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
 loadPosts();
 </script>
 </body>
@@ -1360,6 +1566,44 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_response(500)
                 self.end_headers()
                 self.wfile.write(str(e).encode())
+        elif path == "/auth/gsc":
+            url = gsc_auth_url()
+            self.send_response(302)
+            self.send_header("Location", url)
+            self.end_headers()
+        elif path == "/oauth2callback":
+            qs     = parse_qs(urlparse(self.path).query)
+            code   = qs.get("code",  [""])[0]
+            state  = qs.get("state", [""])[0]
+            error  = qs.get("error", [""])[0]
+            if error or not code:
+                html = f"<h2>Fejl: {error or 'ingen kode'}</h2><a href='/'>← Tilbage</a>"
+            elif gsc_handle_callback(code, state):
+                html = "<h2>✅ Google Search Console forbundet!</h2><p>Du kan lukke denne fane og genindlæse dashboardet.</p><script>setTimeout(()=>window.location='/',2000)</script>"
+            else:
+                html = "<h2>❌ Token-udveksling fejlede</h2><p>Prøv igen fra dashboardet.</p><a href='/'>← Tilbage</a>"
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(html.encode())
+        elif path == "/api/gsc/status":
+            token = _gsc_token()
+            body = json.dumps({"connected": token is not None}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(body)
+        elif path == "/api/gsc/data":
+            qs        = parse_qs(urlparse(self.path).query)
+            start     = qs.get("start", [""])[0]
+            end       = qs.get("end",   [""])[0]
+            dims      = qs.get("dims",  ["query"])[0].split(",")
+            data      = gsc_fetch("https://mirapass.dk/", start, end, dims)
+            body      = json.dumps(data).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(body)
         elif path == "/api/linking/audit":
             try:
                 body = json.dumps(linking_audit()).encode()
