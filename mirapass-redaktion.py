@@ -29,7 +29,7 @@ def _gemini_key() -> str:
 GSC_CREDS_FILE  = os.path.expanduser("~/.config/mirapass/gsc_client.json")
 GSC_KEYCHAIN    = "mirapass-gsc"
 GSC_REDIRECT    = "http://localhost:7771/oauth2callback"
-GSC_SCOPES      = "https://www.googleapis.com/auth/webmasters.readonly"
+GSC_SCOPES      = "https://www.googleapis.com/auth/webmasters.readonly https://www.googleapis.com/auth/analytics.readonly"
 _gsc_oauth_state = {}   # temp state: {state: client_info}
 
 def _gsc_client_info():
@@ -137,6 +137,63 @@ def gsc_fetch(site: str, start: str, end: str, dims: list) -> dict:
         r = requests.post(
             f"https://searchconsole.googleapis.com/webmasters/v3/sites/{urllib.parse.quote(site, safe='')}/searchAnalytics/query",
             headers=headers, json=body, timeout=30)
+    return r.json()
+
+
+GA_KEYCHAIN      = "mirapass-ga"
+GA_PROP_KEYCHAIN = "mirapass-ga-property"
+
+def _ga_token():
+    """Henter GA4 access token — genbruger GSC token hvis det har analytics scope."""
+    r = subprocess.run(["security","find-generic-password","-s",GA_KEYCHAIN,"-a","oauth2","-w"], capture_output=True, text=True)
+    if r.returncode == 0 and r.stdout.strip():
+        return json.loads(r.stdout.strip())
+    return _gsc_token()
+
+def _ga_property_id():
+    """Henter gemt GA4 property ID fra Keychain."""
+    r = subprocess.run(["security","find-generic-password","-s",GA_PROP_KEYCHAIN,"-a","property","-w"], capture_output=True, text=True)
+    return r.stdout.strip() if r.returncode == 0 else None
+
+def _ga_save_property(prop_id):
+    subprocess.run(["security","add-generic-password","-s",GA_PROP_KEYCHAIN,"-a","property","-w",prop_id,"-U"], capture_output=True)
+
+def ga_list_properties():
+    """Lister alle GA4-properties via Admin API."""
+    token = _ga_token()
+    if not token: return []
+    headers = {"Authorization": f"Bearer {token['access_token']}"}
+    r = requests.get("https://analyticsadmin.googleapis.com/v1beta/accountSummaries", headers=headers, timeout=15)
+    if r.status_code == 401:
+        token = _gsc_refresh(token)
+        headers["Authorization"] = f"Bearer {token['access_token']}"
+        r = requests.get("https://analyticsadmin.googleapis.com/v1beta/accountSummaries", headers=headers, timeout=15)
+    data = r.json()
+    props = []
+    for account in data.get("accountSummaries", []):
+        for prop in account.get("propertySummaries", []):
+            props.append({"id": prop["property"], "name": prop.get("displayName",""), "account": account.get("displayName","")})
+    return props
+
+def ga_fetch(property_id, start, end, dimensions, metrics, dimension_filter=None):
+    """Kalder GA4 Data API og returnerer rows."""
+    token = _ga_token()
+    if not token: return {"error": "ikke_autoriseret"}
+    headers = {"Authorization": f"Bearer {token['access_token']}", "Content-Type": "application/json"}
+    body = {
+        "dateRanges": [{"startDate": start, "endDate": end}],
+        "dimensions": [{"name": d} for d in dimensions],
+        "metrics":    [{"name": m} for m in metrics],
+        "limit": 50,
+    }
+    if dimension_filter:
+        body["dimensionFilter"] = dimension_filter
+    prop = property_id.replace("properties/","")
+    r = requests.post(f"https://analyticsdata.googleapis.com/v1beta/properties/{prop}:runReport", headers=headers, json=body, timeout=30)
+    if r.status_code == 401:
+        token = _gsc_refresh(token)
+        headers["Authorization"] = f"Bearer {token['access_token']}"
+        r = requests.post(f"https://analyticsdata.googleapis.com/v1beta/properties/{prop}:runReport", headers=headers, json=body, timeout=30)
     return r.json()
 
 
@@ -435,6 +492,7 @@ h2{font-size:1.05rem;font-weight:600}
   <button class="tab" onclick="showTab('seo',this)">SEO Analyse</button>
   <button class="tab" onclick="showLinking(this)">Intern Linking</button>
   <button class="tab" onclick="showGSC(this)">Search Console</button>
+  <button class="tab" onclick="showGA(this)">Google Analytics</button>
 </div>
 
 <div id="pane-timeline" class="pane active">
@@ -443,6 +501,7 @@ h2{font-size:1.05rem;font-weight:600}
 <div id="pane-seo" class="pane"></div>
 <div id="pane-linking" class="pane"></div>
 <div id="pane-gsc" class="pane"></div>
+<div id="pane-ga" class="pane"></div>
 
 <div id="pane-table" class="pane">
   <div class="toolbar">
@@ -1324,6 +1383,156 @@ async function fixCtrForPage(url) {
   }
 }
 
+/* ── Google Analytics ─────────────────── */
+let gaData = null;
+let gaProperty = null;
+
+async function showGA(btn) {
+  showTab('ga', btn);
+  if (gaData !== null) return;
+  const pane = document.getElementById('pane-ga');
+  pane.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Tjekker forbindelse…</div>';
+
+  const status = await fetch('/api/ga/status').then(r=>r.json());
+  if (!status.connected) {
+    pane.innerHTML = `<div style="max-width:480px;margin:3rem auto;text-align:center">
+      <div style="font-size:2.5rem;margin-bottom:1rem">📊</div>
+      <h2 style="margin-bottom:.75rem">Forbind Google Analytics</h2>
+      <p style="color:var(--muted);margin-bottom:1.5rem">Log ind med den Google-konto der har adgang til mirapass.dk i GA4.</p>
+      <a href="/auth/gsc" style="background:var(--accent);color:#fff;border-radius:6px;padding:.65rem 1.4rem;text-decoration:none;font-size:.95rem">Forbind Google-konto</a>
+    </div>`;
+    return;
+  }
+
+  if (!status.property) {
+    // No property selected yet — show property picker
+    pane.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Henter properties…</div>';
+    const props = await fetch('/api/ga/properties').then(r=>r.json());
+    if (!props.length) {
+      pane.innerHTML = '<p style="padding:2rem;color:var(--muted)">Ingen GA4 properties fundet. Tjek at Google Analytics API er aktiveret i Google Cloud Console.</p>';
+      return;
+    }
+    const rows = props.map(p=>`<tr style="cursor:pointer" onclick="selectGAProperty('${p.id}','${p.name.replace(/'/g,"\\'")}')">
+      <td><strong>${p.name}</strong></td>
+      <td style="color:var(--muted);font-size:.82rem">${p.id}</td>
+      <td style="color:var(--muted);font-size:.82rem">${p.account}</td>
+    </tr>`).join('');
+    pane.innerHTML = `<div style="max-width:600px;margin:2rem auto">
+      <h2 style="margin-bottom:1rem">Vælg GA4 Property</h2>
+      <table style="font-size:.88rem"><thead><tr><th>Property</th><th>ID</th><th>Konto</th></tr></thead><tbody>${rows}</tbody></table>
+    </div>`;
+    return;
+  }
+
+  gaProperty = status.property;
+  loadGA();
+}
+
+async function selectGAProperty(id, name) {
+  await fetch('/api/ga/set-property', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({property: id})});
+  gaProperty = id;
+  gaData = null;
+  loadGA();
+}
+
+async function loadGA() {
+  const pane = document.getElementById('pane-ga');
+  pane.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Henter Analytics data…</div>';
+  try {
+    const [overview, pages, channels] = await Promise.all([
+      fetch('/api/ga/data?type=overview').then(r=>r.json()),
+      fetch('/api/ga/data?type=pages').then(r=>r.json()),
+      fetch('/api/ga/data?type=channels').then(r=>r.json()),
+    ]);
+    gaData = { overview, pages, channels };
+    renderGA();
+  } catch(e) {
+    pane.innerHTML = `<p style="color:#f85149;padding:2rem">Fejl: ${e.message}</p>`;
+  }
+}
+
+function renderGA() {
+  const pane = document.getElementById('pane-ga');
+  if (!gaData) return;
+
+  // Helper to get metric value from row
+  const metricVal = (row, idx) => row.metricValues?.[idx]?.value || '0';
+  const dimVal    = (row, idx) => row.dimensionValues?.[idx]?.value || '';
+
+  // Overview: total organic sessions
+  const ovRows = gaData.overview.rows || [];
+  const totSessions = ovRows.reduce((s,r)=>s+parseInt(metricVal(r,0)),0);
+  const totUsers    = ovRows.reduce((s,r)=>s+parseInt(metricVal(r,1)),0);
+  const totNew      = ovRows.reduce((s,r)=>s+parseInt(metricVal(r,2)),0);
+
+  // Pages table
+  const pageRows = (gaData.pages.rows||[]).slice(0,20).map(r=>{
+    const path     = dimVal(r,0);
+    const sessions = parseInt(metricVal(r,0));
+    const users    = parseInt(metricVal(r,1));
+    const bounce   = (parseFloat(metricVal(r,2))*100).toFixed(0);
+    const dur      = parseInt(metricVal(r,4));
+    const durStr   = `${Math.floor(dur/60)}:${String(dur%60).padStart(2,'0')}`;
+    return `<tr>
+      <td><a href="https://mirapass.dk${path}" target="_blank" style="color:var(--accent);font-size:.8rem">${path}</a></td>
+      <td style="text-align:right">${sessions}</td>
+      <td style="text-align:right">${users}</td>
+      <td style="text-align:right">${bounce}%</td>
+      <td style="text-align:right">${durStr}</td>
+    </tr>`;
+  }).join('');
+
+  // Channels table
+  const chRows = (gaData.channels.rows||[]).map(r=>{
+    const ch   = dimVal(r,0)||'(direct)';
+    const sess = parseInt(metricVal(r,0));
+    const usr  = parseInt(metricVal(r,1));
+    const bnc  = (parseFloat(metricVal(r,2))*100).toFixed(0);
+    const chColor = ch==='Organic Search'?'#3fb950':ch==='Direct'?'#58a6ff':ch.includes('Social')?'#d29922':'var(--muted)';
+    return `<tr>
+      <td><span style="color:${chColor};font-weight:500">${ch}</span></td>
+      <td style="text-align:right">${sess.toLocaleString('da-DK')}</td>
+      <td style="text-align:right">${usr.toLocaleString('da-DK')}</td>
+      <td style="text-align:right">${bnc}%</td>
+    </tr>`;
+  }).join('');
+
+  const newPct = totUsers ? Math.round(totNew/totUsers*100) : 0;
+
+  pane.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;gap:.5rem">
+      <span style="font-size:.8rem;color:var(--muted)">Organisk søgetrafik — seneste 30 dage</span>
+      <button onclick="gaData=null;loadGA()" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:.35rem .8rem;cursor:pointer;font-size:.8rem">↻ Opdater</button>
+    </div>
+    <div style="display:flex;gap:1.25rem;flex-wrap:wrap;margin-bottom:1.75rem">
+      ${[
+        ['Org. sessioner', totSessions.toLocaleString('da-DK'), '#3fb950'],
+        ['Brugere', totUsers.toLocaleString('da-DK'), '#58a6ff'],
+        ['Nye brugere', totNew.toLocaleString('da-DK') + ' (' + newPct + '%)', '#d29922'],
+      ].map(([l,v,c])=>`
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1rem 1.4rem;min-width:160px">
+        <div style="font-size:.75rem;color:var(--muted);margin-bottom:.3rem">${l}</div>
+        <div style="font-size:1.6rem;font-weight:700;color:${c}">${v}</div>
+      </div>`).join('')}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:2rem">
+      <div>
+        <h2 style="margin-bottom:.75rem">Top organiske sider</h2>
+        <table style="font-size:.82rem">
+          <thead><tr><th>Side</th><th style="text-align:right">Sess.</th><th style="text-align:right">Brugere</th><th style="text-align:right">Bounce</th><th style="text-align:right">Tid</th></tr></thead>
+          <tbody>${pageRows || '<tr><td colspan="5" style="color:var(--muted);padding:1rem">Ingen data</td></tr>'}</tbody>
+        </table>
+      </div>
+      <div>
+        <h2 style="margin-bottom:.75rem">Trafik pr. kanal</h2>
+        <table style="font-size:.82rem">
+          <thead><tr><th>Kanal</th><th style="text-align:right">Sess.</th><th style="text-align:right">Brugere</th><th style="text-align:right">Bounce</th></tr></thead>
+          <tbody>${chRows || '<tr><td colspan="4" style="color:var(--muted);padding:1rem">Ingen data</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
 loadPosts();
 </script>
 </body>
@@ -1964,6 +2173,47 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_response(500)
                 self.end_headers()
                 self.wfile.write(b'{"error":"intern fejl"}')
+        elif path == "/api/ga/status":
+            prop = _ga_property_id()
+            token = _ga_token()
+            body = json.dumps({"connected": token is not None, "property": prop}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type","application/json")
+            self.end_headers()
+            self.wfile.write(body)
+        elif path == "/api/ga/properties":
+            props = ga_list_properties()
+            body = json.dumps(props).encode()
+            self.send_response(200)
+            self.send_header("Content-Type","application/json")
+            self.end_headers()
+            self.wfile.write(body)
+        elif path == "/api/ga/data":
+            qs = parse_qs(urlparse(self.path).query)
+            prop = _ga_property_id()
+            if not prop:
+                body = json.dumps({"error":"ingen_property"}).encode()
+                self.send_response(200); self.send_header("Content-Type","application/json"); self.end_headers(); self.wfile.write(body)
+            else:
+                start = qs.get("start",["30daysAgo"])[0]
+                end   = qs.get("end",  ["yesterday"])[0]
+                dtype = qs.get("type", ["overview"])[0]
+                if dtype == "pages":
+                    data = ga_fetch(prop, start, end,
+                        ["pagePath","pageTitle"],
+                        ["sessions","activeUsers","bounceRate","averageSessionDuration","screenPageViews"],
+                        {"filter": {"fieldName":"sessionDefaultChannelGrouping","stringFilter":{"matchType":"EXACT","value":"Organic Search"}}})
+                elif dtype == "channels":
+                    data = ga_fetch(prop, start, end,
+                        ["sessionDefaultChannelGrouping"],
+                        ["sessions","activeUsers","bounceRate","averageSessionDuration"])
+                else:  # overview
+                    data = ga_fetch(prop, start, end,
+                        ["date"],
+                        ["sessions","activeUsers","newUsers"],
+                        {"filter": {"fieldName":"sessionDefaultChannelGrouping","stringFilter":{"matchType":"EXACT","value":"Organic Search"}}})
+                body = json.dumps(data).encode()
+                self.send_response(200); self.send_header("Content-Type","application/json"); self.end_headers(); self.wfile.write(body)
         else:
             self.send_response(404)
             self.end_headers()
@@ -2028,6 +2278,20 @@ class Handler(BaseHTTPRequestHandler):
                     gsc_fix_ctr_stream(self.wfile, url)
             except Exception:
                 self._write("\nIntern fejl — se server-log\n")
+
+        elif path == "/api/ga/set-property":
+            try:
+                length = int(self.headers.get("Content-Length",0))
+                body = self.rfile.read(length) if length else b"{}"
+                data = json.loads(body)
+                prop_id = data.get("property","")
+                if prop_id.startswith("properties/"):
+                    _ga_save_property(prop_id)
+                    self._write("OK\n")
+                else:
+                    self._write("Ugyldig property ID\n")
+            except Exception:
+                self._write("Intern fejl\n")
 
         else:
             self._write("404\n")
