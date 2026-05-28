@@ -493,6 +493,7 @@ h2{font-size:1.05rem;font-weight:600}
   <button class="tab" onclick="showLinking(this)">Intern Linking</button>
   <button class="tab" onclick="showGSC(this)">Search Console</button>
   <button class="tab" onclick="showGA(this)">Google Analytics</button>
+  <button class="tab" onclick="showOpportunities(this)">Muligheder</button>
 </div>
 
 <div id="pane-timeline" class="pane active">
@@ -502,6 +503,7 @@ h2{font-size:1.05rem;font-weight:600}
 <div id="pane-linking" class="pane"></div>
 <div id="pane-gsc" class="pane"></div>
 <div id="pane-ga" class="pane"></div>
+<div id="pane-opp" class="pane"></div>
 
 <div id="pane-table" class="pane">
   <div class="toolbar">
@@ -1539,6 +1541,112 @@ function renderGA() {
     </div>`;
 }
 
+/* ── Auto-fix ─────────────────────────── */
+async function autoFix(url, action) {
+  const log = document.getElementById('autofix-log');
+  log.style.display = 'block';
+  log.textContent = '';
+  log.scrollIntoView({behavior:'smooth', block:'nearest'});
+  try {
+    const res = await fetch('/api/autofix', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({url, action})
+    });
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      log.textContent += decoder.decode(value);
+      log.scrollTop = log.scrollHeight;
+    }
+    // Refresh opportunity data after fix
+    oppData = null;
+  } catch(e) {
+    log.textContent += 'Fejl: ' + e.message;
+  }
+}
+
+/* ── Muligheds-matrix ─────────────────── */
+let oppData = null;
+
+async function showOpportunities(btn) {
+  showTab('opp', btn);
+  if (oppData) { renderOpportunities(); return; }
+  document.getElementById('pane-opp').innerHTML = '<div class="loading"><div class="loading-spinner"></div>Kombinerer GSC + GA data…</div>';
+  try {
+    oppData = await fetch('/api/opportunities').then(r=>r.json());
+    renderOpportunities();
+  } catch(e) {
+    document.getElementById('pane-opp').innerHTML = `<p style="color:#f85149;padding:2rem">Fejl: ${e.message}</p>`;
+  }
+}
+
+function renderOpportunities() {
+  const pane = document.getElementById('pane-opp');
+  if (!oppData || !oppData.length) {
+    pane.innerHTML = '<p style="padding:2rem;color:var(--muted)">Ingen data — tjek at GSC og GA er forbundet.</p>';
+    return;
+  }
+
+  const actionLabel = {
+    meta:        ['#d29922', 'Fix meta',       'Gode rankings men lav CTR → omskriv titel/beskrivelse'],
+    content:     ['#f85149', 'Forbedr indhold','Lav ranking → indholdet skal styrkes'],
+    engagement:  ['#58a6ff', 'Engagement',     'Klik men brugerne forlader hurtigt → forbedr indhold/struktur'],
+    links:       ['#3fb950', 'Byg links',      'God performance → boost med interne links'],
+  };
+
+  const rows = oppData.map(d => {
+    const [color, label, tip] = actionLabel[d.action] || ['var(--muted)','–',''];
+    const scoreBar = `<div style="background:var(--border);border-radius:3px;height:6px;width:80px;display:inline-block;vertical-align:middle">
+      <div style="width:${Math.min(d.opportunity,100)}%;background:${color};height:6px;border-radius:3px"></div></div>`;
+    const durStr = d.duration != null ? `${Math.floor(d.duration/60)}:${String(d.duration%60|0).padStart(2,'0')}` : '–';
+    const bounceStr = d.bounce != null ? d.bounce+'%' : '–';
+    return `<tr>
+      <td><a href="${d.url}" target="_blank" style="color:var(--text);font-size:.82rem;text-decoration:none" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${d.path}</a></td>
+      <td style="text-align:center">${d.impressions}</td>
+      <td style="text-align:center;color:${d.position<=10?'#3fb950':d.position<=15?'#d29922':'#f85149'}">${d.position}</td>
+      <td style="text-align:center">${d.ctr}%</td>
+      <td style="text-align:center">${d.sessions||'–'}</td>
+      <td style="text-align:center">${bounceStr}</td>
+      <td style="text-align:center">${durStr}</td>
+      <td style="text-align:center">${scoreBar} <span style="font-size:.8rem;color:var(--muted)">${d.opportunity}</span></td>
+      <td><span style="background:${color}22;color:${color};border-radius:4px;padding:.15rem .5rem;font-size:.78rem;white-space:nowrap" title="${tip}">${label}</span></td>
+      <td><button onclick="autoFix('${d.url}','${d.action}')" style="background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:.25rem .6rem;cursor:pointer;font-size:.78rem;color:var(--text)">Fix</button></td>
+    </tr>`;
+  }).join('');
+
+  // Summary counts by action
+  const counts = {};
+  oppData.forEach(d => counts[d.action] = (counts[d.action]||0)+1);
+
+  pane.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;gap:.5rem">
+      <div style="display:flex;gap:.75rem;flex-wrap:wrap">
+        ${Object.entries(actionLabel).map(([k,[c,l]])=>`
+        <span style="background:${c}22;color:${c};border-radius:6px;padding:.3rem .75rem;font-size:.82rem">${l}: ${counts[k]||0}</span>`).join('')}
+      </div>
+      <button onclick="oppData=null;showOpportunities(document.querySelector('.tab.active'))" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:.35rem .8rem;cursor:pointer;font-size:.8rem">Opdater</button>
+    </div>
+    <div id="autofix-log" style="display:none;background:#0d1117;border:1px solid var(--border);border-radius:6px;padding:1rem;margin-bottom:1rem;font-family:monospace;font-size:.8rem;max-height:200px;overflow-y:auto;color:#e6edf3;white-space:pre-wrap"></div>
+    <table style="font-size:.83rem">
+      <thead><tr>
+        <th>Side</th>
+        <th style="text-align:center;width:60px">Vis.</th>
+        <th style="text-align:center;width:55px">Pos.</th>
+        <th style="text-align:center;width:55px">CTR</th>
+        <th style="text-align:center;width:55px">Sess.</th>
+        <th style="text-align:center;width:65px">Bounce</th>
+        <th style="text-align:center;width:55px">Tid</th>
+        <th style="text-align:center;width:120px">Score</th>
+        <th style="width:110px">Handling</th>
+        <th style="width:60px"></th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
 loadPosts();
 </script>
 </body>
@@ -2082,6 +2190,214 @@ Regler:
         w(f"❌ Gem fejlede (HTTP {save.status_code}): {save.text[:200]}")
 
 
+def build_opportunities():
+    """Kombinerer GSC + GA data per side og beregner muligheds-score."""
+    from datetime import date, timedelta
+    end   = (date.today() - timedelta(days=1)).isoformat()
+    start = (date.today() - timedelta(days=29)).isoformat()
+
+    # GSC page data
+    gsc = gsc_fetch("https://mirapass.dk/", start, end, ["page"])
+    gsc_rows = gsc.get("rows", [])
+
+    # GA organic page data
+    prop = _ga_property_id()
+    ga = ga_fetch(prop, start, end,
+        ["pagePath"],
+        ["sessions","activeUsers","bounceRate","averageSessionDuration","screenPageViews"],
+        {"filter": {"fieldName":"sessionDefaultChannelGrouping","stringFilter":{"matchType":"EXACT","value":"Organic Search"}}}) if prop else {}
+    ga_rows = ga.get("rows", [])
+
+    # Index GA by path
+    ga_by_path = {}
+    for r in ga_rows:
+        path = r["dimensionValues"][0]["value"]
+        ga_by_path[path] = {
+            "sessions": int(r["metricValues"][0]["value"]),
+            "users":    int(r["metricValues"][1]["value"]),
+            "bounce":   float(r["metricValues"][2]["value"]),
+            "duration": float(r["metricValues"][3]["value"]),
+        }
+
+    results = []
+    for r in gsc_rows:
+        url  = r["keys"][0]
+        path = url.replace("https://mirapass.dk", "")
+        ga_d = ga_by_path.get(path, {})
+
+        impressions = r.get("impressions", 0)
+        clicks      = r.get("clicks", 0)
+        ctr         = r.get("ctr", 0)
+        position    = r.get("position", 99)
+        sessions    = ga_d.get("sessions", 0)
+        bounce      = ga_d.get("bounce", None)
+        duration    = ga_d.get("duration", None)
+
+        # Opportunity score: high impressions, bad position/CTR, low engagement = most urgent
+        pos_score  = max(0, (20 - position) / 20 * 40)
+        ctr_gap    = max(0, (0.05 - ctr) / 0.05 * 30)
+        impr_score = min(20, impressions / 10)
+        eng_gap    = (1 - min(1, (duration or 0) / 120)) * 10 if duration is not None else 5
+        opportunity = round(pos_score + ctr_gap + impr_score + eng_gap, 1)
+
+        # Action type
+        if position > 15:
+            action = "content"
+        elif ctr < 0.02:
+            action = "meta"
+        elif bounce and bounce > 0.6:
+            action = "engagement"
+        else:
+            action = "links"
+
+        results.append({
+            "url":         url,
+            "path":        path,
+            "impressions": impressions,
+            "clicks":      clicks,
+            "ctr":         round(ctr * 100, 1),
+            "position":    round(position, 1),
+            "sessions":    sessions,
+            "bounce":      round(bounce * 100, 1) if bounce is not None else None,
+            "duration":    round(duration, 0) if duration is not None else None,
+            "opportunity": opportunity,
+            "action":      action,
+        })
+
+    results.sort(key=lambda x: -x["opportunity"])
+    return results
+
+
+def autofix_stream(wfile, url, action):
+    """
+    Auto-fix en side baseret på action type:
+    - meta: hent GSC søgeord + GA data -> Gemini omskriver meta title + beskrivelse
+    - content: Gemini forbedrer intro-afsnit baseret på søgehensigt
+    - engagement: Gemini tilføjer TL;DR + bedre struktur
+    - links: find og tilføj interne links
+    """
+    import re as _re, json as _json
+    from datetime import date, timedelta
+
+    def w(msg):
+        try: wfile.write((msg+"\n").encode()); wfile.flush()
+        except Exception: pass
+
+    end   = (date.today() - timedelta(days=1)).isoformat()
+    start = (date.today() - timedelta(days=29)).isoformat()
+
+    slug = url.replace("https://mirapass.dk/","").strip("/")
+    w(f"Analyserer: /{slug}/")
+
+    # Find WP post
+    resp = requests.get(f"{WP_BASE}/posts", auth=wp_auth(),
+        params={"slug": slug, "context": "edit"}, timeout=15)
+    posts = resp.json()
+    if not posts:
+        w("Indlaeg ikke fundet i WordPress"); return
+    post  = posts[0]
+    pid   = post["id"]
+    title = post.get("title",{}).get("rendered","")
+    raw   = post.get("content",{}).get("raw","")
+    plain = _re.sub(r'<[^>]+>',' ', raw)
+    plain = _re.sub(r'\s+', ' ', plain).strip()[:1500]
+    m     = post.get("meta",{}) or {}
+    cur_mt = (m.get("_yoast_wpseo_title","") or "").strip()
+    cur_md = (m.get("_yoast_wpseo_metadesc","") or "").strip()
+
+    # Get GSC query data for this page
+    gsc_q = gsc_fetch("https://mirapass.dk/", start, end, ["query","page"])
+    top_queries = [r["keys"][0] for r in gsc_q.get("rows",[])
+                   if slug in r.get("keys",["",""])[1]][:8]
+    if not top_queries:
+        gsc_g = gsc_fetch("https://mirapass.dk/", start, end, ["query"])
+        top_queries = [r["keys"][0] for r in gsc_g.get("rows",[])[:5]]
+
+    w(f"Top soegeord: {', '.join(top_queries[:5]) or 'ingen fundet'}")
+
+    api_key = _gemini_key()
+    gemini_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+
+    if action in ("meta", "engagement", "content"):
+        w(f"\nGenererer forbedret meta (action: {action})...")
+
+        focus = "klikfrekvens — skriv en meta title og beskrivelse der er uimodstaelig at klikke paa" if action == "meta" \
+           else "soegehensigt — brugere forlader siden hurtigt, meta skal matche hvad de leder efter bedre"
+
+        prompt = f"""Du er SEO-specialist for mirapass.dk (dansk blog om Claude AI).
+
+Side: {url}
+Nuvaerende titel: {title}
+Nuvaerende meta title: {cur_mt or '(ingen)'}
+Nuvaerende meta beskrivelse: {cur_md or '(ingen)'}
+
+Top soegeord der finder denne side:
+{chr(10).join('- ' + q for q in top_queries) or '(ingen data)'}
+
+Indhold (uddrag): {plain[:800]}
+
+Problem: {focus}
+
+Returner KUN valid JSON:
+{{
+  "meta_title": "Ny SEO-titel max 60 tegn, slut med | Mirapass",
+  "meta_desc": "Ny beskrivelse praecis 120-155 tegn, klikvenlig og praecis",
+  "reasoning": "Kort forklaring paa hvad du aendrede og hvorfor (max 100 tegn)"
+}}"""
+
+        try:
+            r = requests.post(f"{gemini_url}?key={api_key}",
+                json={"contents":[{"parts":[{"text":prompt}]}],
+                      "generationConfig":{"temperature":0.5}}, timeout=30)
+            text = r.json()["candidates"][0]["content"]["parts"][0]["text"]
+            text = _re.sub(r'^```(?:json)?\s*','',text.strip(),flags=_re.MULTILINE)
+            text = _re.sub(r'\s*```$','',text.strip(),flags=_re.MULTILINE)
+            gen  = _json.loads(text.strip())
+        except Exception as e:
+            w(f"Gemini fejl: {e}"); return
+
+        w(f'  meta title:  "{gen.get("meta_title","")}\"  ({len(gen.get("meta_title",""))} tegn)')
+        w(f'  meta desc:   "{gen.get("meta_desc","")[:80]}..."  ({len(gen.get("meta_desc",""))} tegn)')
+        w(f'  begrundelse: {gen.get("reasoning","")}')
+
+        save = requests.post(f"{WP_BASE}/posts/{pid}", auth=wp_auth(),
+            json={"meta": {
+                "_yoast_wpseo_title":    gen.get("meta_title",""),
+                "_yoast_wpseo_metadesc": gen.get("meta_desc",""),
+            }}, timeout=30)
+        if save.status_code == 200:
+            w("Gemt i WordPress\n")
+        else:
+            w(f"Gem fejlede (HTTP {save.status_code})\n")
+
+    elif action == "links":
+        w("\nSoeger link-muligheder...")
+        all_posts = _lk_fetch_all()
+        target    = next((p for p in all_posts if p.get("slug") == slug), None)
+        if not target:
+            w("Post ikke fundet til linking"); return
+        result = _lk_find_donor(target, all_posts)
+        if not result:
+            w("Ingen egnet donor fundet"); return
+        donor, find_text = result
+        did    = donor["id"]
+        dtitle = (donor.get("title",{}).get("rendered","") if isinstance(donor.get("title"),dict) else donor.get("title",""))[:45]
+        content     = _lk_raw(donor)
+        new_content = _lk_insert(content, find_text, url)
+        if new_content == content:
+            w("Kunne ikke indsaette link"); return
+        r2 = requests.post(f"{WP_BASE}/posts/{did}", auth=wp_auth(),
+            json={"content": new_content}, timeout=30)
+        if r2.status_code == 200:
+            if isinstance(donor.get("content"),dict): donor["content"]["raw"] = new_content
+            w(f"Link tilfojet fra #{did} '{dtitle}'\n")
+        else:
+            w(f"Gem fejlede\n")
+
+    w("="*40)
+    w("Faerdig")
+
+
 def fetch_posts():
     resp = requests.get(
         f"{WP_BASE}/posts",
@@ -2220,6 +2536,52 @@ class Handler(BaseHTTPRequestHandler):
                         {"filter": {"fieldName":"sessionDefaultChannelGrouping","stringFilter":{"matchType":"EXACT","value":"Organic Search"}}})
                 body = json.dumps(data).encode()
                 self.send_response(200); self.send_header("Content-Type","application/json"); self.end_headers(); self.wfile.write(body)
+        elif path == "/api/opportunities":
+            try:
+                body = json.dumps(build_opportunities()).encode()
+                self.send_response(200); self.send_header("Content-Type","application/json"); self.end_headers(); self.wfile.write(body)
+            except Exception:
+                self.send_response(500); self.end_headers(); self.wfile.write(b'{"error":"intern fejl"}')
+        elif path == "/api/content-score":
+            try:
+                opps = build_opportunities()
+                opp_by_path = {o["path"]: o for o in opps}
+                wp_posts = fetch_posts()
+                scored = []
+                import re as _re
+                for p in wp_posts:
+                    slug  = p.get("slug","")
+                    pp    = f"/{slug}/"
+                    opp   = opp_by_path.get(pp, {})
+                    wc    = len(_re.sub(r'<[^>]+',' ', p.get("content","")).split())
+                    m     = p.get("meta",{}) or {}
+                    has_mt  = bool((m.get("_yoast_wpseo_title","") or "").strip())
+                    has_md  = bool((m.get("_yoast_wpseo_metadesc","") or "").strip())
+                    has_exc = bool((p.get("excerpt","") or "").strip())
+                    seo_base  = (has_mt + has_md + has_exc) / 3 * 30
+                    wc_score  = min(30, wc / 40)
+                    opp_score = opp.get("opportunity", 0)
+                    total     = round(seo_base + wc_score + opp_score, 1)
+                    scored.append({
+                        "id":       p["id"],
+                        "title":    p["title"],
+                        "slug":     slug,
+                        "wc":       wc,
+                        "has_mt":   has_mt,
+                        "has_md":   has_md,
+                        "has_exc":  has_exc,
+                        "position": opp.get("position"),
+                        "impressions": opp.get("impressions",0),
+                        "ctr":      opp.get("ctr",0),
+                        "sessions": opp.get("sessions",0),
+                        "action":   opp.get("action","content"),
+                        "score":    total,
+                    })
+                scored.sort(key=lambda x: -x["score"])
+                body = json.dumps(scored[:30]).encode()
+                self.send_response(200); self.send_header("Content-Type","application/json"); self.end_headers(); self.wfile.write(body)
+            except Exception:
+                self.send_response(500); self.end_headers(); self.wfile.write(b'{"error":"intern fejl"}')
         else:
             self.send_response(404)
             self.end_headers()
@@ -2296,6 +2658,20 @@ class Handler(BaseHTTPRequestHandler):
                     self._write("OK\n")
                 else:
                     self._write("Ugyldig property ID\n")
+            except Exception:
+                self._write("Intern fejl\n")
+
+        elif path == "/api/autofix":
+            try:
+                length = int(self.headers.get("Content-Length",0))
+                body   = self.rfile.read(length) if length else b"{}"
+                data   = json.loads(body)
+                url    = data.get("url","")
+                action = data.get("action","meta")
+                if not url.startswith("https://mirapass.dk/"):
+                    self._write("Fejl: ugyldig URL\n")
+                else:
+                    autofix_stream(self.wfile, url, action)
             except Exception:
                 self._write("Intern fejl\n")
 
