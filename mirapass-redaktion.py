@@ -1284,7 +1284,10 @@ function renderGSC() {
   pane.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;gap:.5rem">
       <span style="font-size:.8rem;color:var(--muted)">${gscData.start} → ${gscData.end} (28 dage)</span>
-      <button onclick="gscData=null;loadGSC()" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:.35rem .8rem;cursor:pointer;font-size:.8rem">↻ Opdater</button>
+      <div style="display:flex;gap:.5rem">
+        <a href="/auth/gsc" style="background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:.35rem .8rem;font-size:.8rem;text-decoration:none" title="Re-autoriser for at opdatere tilladelser">🔑 Opdater tilladelser</a>
+        <button onclick="gscData=null;loadGSC()" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:.35rem .8rem;cursor:pointer;font-size:.8rem">↻ Opdater</button>
+      </div>
     </div>
     <div style="display:flex;gap:1.25rem;flex-wrap:wrap;margin-bottom:1.75rem">
       ${[['Klik',totClicks,'#58a6ff'],['Visninger',totImpr,'var(--muted)'],['Gns. CTR',avgCtr+'%','#3fb950'],['Gns. position',avgPos,'#d29922']].map(([l,v,c])=>`
@@ -1502,7 +1505,10 @@ function renderGA() {
   pane.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;gap:.5rem">
       <span style="font-size:.8rem;color:var(--muted)">Organisk søgetrafik — seneste 30 dage</span>
-      <button onclick="gaData=null;loadGA()" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:.35rem .8rem;cursor:pointer;font-size:.8rem">↻ Opdater</button>
+      <div style="display:flex;gap:.5rem">
+        <a href="/auth/gsc" style="background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:6px;padding:.35rem .8rem;font-size:.8rem;text-decoration:none" title="Re-autoriser for at tilføje Analytics-adgang">🔑 Opdater tilladelser</a>
+        <button onclick="gaData=null;loadGA()" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:.35rem .8rem;cursor:pointer;font-size:.8rem">↻ Opdater</button>
+      </div>
     </div>
     <div style="display:flex;gap:1.25rem;flex-wrap:wrap;margin-bottom:1.75rem">
       ${[
