@@ -679,6 +679,9 @@ function filterTable() {
 
 function renderTable(){ filterTable(); }
 
+/* ── GSC page data cache ──────────────────────────────── */
+let gscPageData = null;  // {slug: {clicks, impressions, position}}
+
 /* ── SEO Analyse ─────────────────────────────────────── */
 let seoSort = {col:'score', dir:'asc'};
 
@@ -736,6 +739,35 @@ function checkChip(c) {
   return           `<span class="seo-check chk-miss">✗ ${c.label}</span>`;
 }
 
+async function loadGscIntoSEO() {
+  const btn = document.getElementById('gsc-into-seo-btn');
+  if (btn) { btn.textContent = '↻ Henter…'; btn.disabled = true; }
+  const end   = new Date(); end.setDate(end.getDate()-1);
+  const start = new Date(); start.setDate(start.getDate()-28);
+  const fmt = d => d.toISOString().slice(0,10);
+  try {
+    const data = await fetch(`/api/gsc/data?start=${fmt(start)}&end=${fmt(end)}&dims=page`).then(r=>r.json());
+    if (data.error) {
+      if (btn) { btn.textContent = '↻ Hent GSC'; btn.disabled = false; }
+      alert('GSC ikke forbundet. Gå til Search Console-fanen og forbind først.');
+      return;
+    }
+    const rows = data.rows || [];
+    gscPageData = {};
+    rows.forEach(r => {
+      const url = r.keys[0];
+      // extract slug: https://mirapass.dk/some-slug/ -> some-slug
+      const m = url.match(/mirapass\.dk\/([^/]+)\/?$/);
+      if (m) gscPageData[m[1]] = { clicks: r.clicks, impressions: r.impressions, position: r.position };
+    });
+  } catch(e) {
+    if (btn) { btn.textContent = '↻ Hent GSC'; btn.disabled = false; }
+    alert('Fejl ved hentning af GSC-data: ' + e.message);
+    return;
+  }
+  renderSEO();
+}
+
 function renderSEO() {
   const pane = document.getElementById('pane-seo');
   const inbound = buildInbound();
@@ -790,12 +822,24 @@ function renderSEO() {
     const badge = p.status === 'publish'
       ? '<span class="tl-badge badge-publish">Udgivet</span>'
       : '<span class="tl-badge badge-future">Planlagt</span>';
+    // GSC columns
+    let posCell = '<td style="text-align:right;color:var(--muted);font-size:.8rem">–</td>';
+    let clickCell = '<td style="text-align:right;color:var(--muted);font-size:.8rem">–</td>';
+    if (gscPageData && gscPageData[p.slug]) {
+      const g = gscPageData[p.slug];
+      const pos = g.position.toFixed(1);
+      const posColor = g.position <= 5 ? 'var(--green)' : g.position <= 15 ? 'var(--orange)' : '#f85149';
+      posCell = `<td style="text-align:right;font-size:.8rem;font-weight:600;color:${posColor}">${pos}</td>`;
+      clickCell = `<td style="text-align:right;font-size:.8rem;color:var(--blue)">${g.clicks}</td>`;
+    }
     return `<tr>
       <td style="text-align:center"><div class="seo-score ${sc}">${pct}%</div></td>
       <td>${priorityLabel(score, maxScore)}</td>
       <td style="font-size:.85rem"><a href="https://mirapass.dk/${p.slug}/" target="_blank" style="color:var(--text);text-decoration:none;font-weight:500" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${p.title} <span style="color:var(--muted);font-size:.75rem">↗</span></a></td>
       <td>${badge}</td>
       <td style="font-size:.78rem;color:var(--muted)">${wc.toLocaleString('da-DK')}</td>
+      ${posCell}
+      ${clickCell}
       <td style="white-space:nowrap;line-height:1.9">${chips}</td>
     </tr>`;
   }).join('');
@@ -811,6 +855,9 @@ function renderSEO() {
     <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;flex-wrap:wrap">
       <button onclick="runSeoGenerate()" style="background:#238636;color:#fff;border:none;border-radius:6px;padding:.5rem 1.1rem;cursor:pointer;font-size:.88rem">
         ✨ Generer og forbedr SEO-felter
+      </button>
+      <button id="gsc-into-seo-btn" onclick="loadGscIntoSEO()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:.5rem 1.1rem;cursor:pointer;font-size:.88rem">
+        ↻ Hent GSC
       </button>
       <span style="font-size:.8rem;color:var(--muted)">Udfylder manglende + forbedrer for korte/lange meta title, meta beskrivelse og excerpt</span>
     </div>
@@ -832,6 +879,8 @@ function renderSEO() {
         <th>${sortBtn('title','Titel')}</th>
         <th style="width:90px">Status</th>
         <th style="width:80px">${sortBtn('wc','Ord')}</th>
+        <th style="width:60px;text-align:right">Pos.</th>
+        <th style="width:55px;text-align:right">Klik</th>
         <th>Tjek</th>
       </tr></thead>
       <tbody>${tableRows}</tbody>
@@ -1095,6 +1144,68 @@ function renderGSC() {
       <td style="text-align:right">${r.position.toFixed(1)}</td>
     </tr>`;}).join('');
 
+  // Quick wins: position 4-20, impressions >= 10, sorted by impressions desc
+  const quickWins = rows
+    .filter(r => r.position >= 4 && r.position <= 20 && r.impressions >= 10)
+    .slice().sort((a,b) => b.impressions - a.impressions)
+    .slice(0, 25);
+
+  function potentialLabel(pos) {
+    if (pos <= 8)  return ['høj',    '#3fb950'];
+    if (pos <= 15) return ['middel', 'var(--orange)'];
+    return               ['lav',    '#f85149'];
+  }
+
+  const quickWinRows = quickWins.map(r => {
+    const [potLabel, potColor] = potentialLabel(r.position);
+    const barPct = Math.round(((20 - r.position) / 16) * 100);
+    const qEnc = encodeURIComponent(r.keys[0]);
+    return `<tr>
+      <td style="max-width:260px;font-size:.82rem">${r.keys[0]}</td>
+      <td style="text-align:right;font-size:.82rem">${r.impressions}</td>
+      <td style="text-align:right;font-size:.82rem">${r.position.toFixed(1)}</td>
+      <td style="width:130px">
+        <div style="display:flex;align-items:center;gap:.5rem">
+          <div style="flex:1;background:var(--border);border-radius:3px;height:6px">
+            <div style="width:${barPct}%;background:${potColor};height:6px;border-radius:3px"></div>
+          </div>
+          <span style="font-size:.72rem;color:${potColor};font-weight:600;white-space:nowrap">${potLabel}</span>
+        </div>
+      </td>
+      <td><button onclick="optimizeForKeyword(decodeURIComponent('${qEnc}'), ${r.position.toFixed(1)}, ${r.impressions})" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:.25rem .65rem;cursor:pointer;font-size:.78rem">Optimer →</button></td>
+    </tr>`;
+  }).join('');
+
+  // CTR optimering: impressions >= 20 AND ctr < 0.03
+  const lowCtrPages = pRows
+    .filter(r => r.impressions >= 20 && r.ctr < 0.03)
+    .slice().sort((a,b) => b.impressions - a.impressions)
+    .slice(0, 20);
+
+  const ctrRows = lowCtrPages.map(r => {
+    const slug = r.keys[0].replace('https://mirapass.dk', '');
+    const urlEnc = encodeURIComponent(r.keys[0]);
+    // find top queries for this page by slug matching
+    const pageSlug = r.keys[0].replace(/https:\/\/mirapass\.dk\/|\/$/g,'');
+    const topKw = rows
+      .filter(q => {
+        // approximate: look for queries related to page slug words
+        const slugWords = pageSlug.split('-').filter(w => w.length > 3);
+        return slugWords.some(w => q.keys[0].toLowerCase().includes(w));
+      })
+      .sort((a,b) => b.impressions - a.impressions)
+      .slice(0, 3)
+      .map(q => q.keys[0])
+      .join(', ');
+    return `<tr>
+      <td><a href="${r.keys[0]}" target="_blank" style="color:var(--accent);font-size:.82rem">${slug}</a></td>
+      <td style="text-align:right;font-size:.82rem">${r.impressions}</td>
+      <td style="text-align:right;font-size:.82rem;color:#f85149;font-weight:600">${(r.ctr*100).toFixed(1)}%</td>
+      <td style="font-size:.75rem;color:var(--muted);max-width:200px">${topKw || '–'}</td>
+      <td><button onclick="fixCtrForPage(decodeURIComponent('${urlEnc}'))" style="background:var(--accent);color:#fff;border:none;border-radius:5px;padding:.25rem .65rem;cursor:pointer;font-size:.78rem">Forbedr meta →</button></td>
+    </tr>`;
+  }).join('');
+
   pane.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;gap:.5rem">
       <span style="font-size:.8rem;color:var(--muted)">${gscData.start} → ${gscData.end} (28 dage)</span>
@@ -1107,7 +1218,7 @@ function renderGSC() {
         <div style="font-size:1.7rem;font-weight:700;color:${c}">${typeof v==='number'?v.toLocaleString('da-DK'):v}</div>
       </div>`).join('')}
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:2rem;flex-wrap:wrap">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:2rem;flex-wrap:wrap;margin-bottom:2rem">
       <div>
         <h2 style="margin-bottom:.75rem">Top søgeord</h2>
         <table style="font-size:.82rem">
@@ -1122,7 +1233,79 @@ function renderGSC() {
           <tbody>${topPages}</tbody>
         </table>
       </div>
+    </div>
+
+    <div style="margin-bottom:2rem">
+      <h2 style="margin-bottom:.5rem">Quick wins <span style="font-size:.8rem;color:var(--muted);font-weight:400">(position 4–20, min. 10 visninger)</span></h2>
+      <p style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem">Søgeord der er tæt på top-3 — en lille forbedring kan give markant flere klik.</p>
+      ${quickWins.length === 0
+        ? '<p style="color:var(--muted);font-size:.85rem">Ingen quick wins fundet i perioden.</p>'
+        : `<table style="font-size:.82rem">
+          <thead><tr><th>Søgeord</th><th style="text-align:right">Vis.</th><th style="text-align:right">Pos.</th><th style="width:160px">Potentiale</th><th></th></tr></thead>
+          <tbody>${quickWinRows}</tbody>
+        </table>`}
+    </div>
+
+    <div style="margin-bottom:2rem">
+      <h2 style="margin-bottom:.5rem">CTR Optimering <span style="font-size:.8rem;color:var(--muted);font-weight:400">(under 3% CTR, min. 20 visninger)</span></h2>
+      <p style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem">Sider der vises men ikke klikkes på — bedre meta title/beskrivelse kan øge CTR markant.</p>
+      <div id="ctr-fix-log" style="display:none;background:#0d1117;border:1px solid var(--border);border-radius:6px;padding:1rem;margin-bottom:1rem;font-family:monospace;font-size:.8rem;max-height:180px;overflow-y:auto;color:#e6edf3;white-space:pre-wrap"></div>
+      ${lowCtrPages.length === 0
+        ? '<p style="color:var(--muted);font-size:.85rem">Ingen sider med lav CTR fundet.</p>'
+        : `<table style="font-size:.82rem">
+          <thead><tr><th>Side</th><th style="text-align:right">Vis.</th><th style="text-align:right">CTR</th><th>Top søgeord</th><th></th></tr></thead>
+          <tbody>${ctrRows}</tbody>
+        </table>`}
     </div>`;
+}
+
+function optimizeForKeyword(query, position, impressions) {
+  // Find the best matching post
+  const q = query.toLowerCase();
+  let bestPost = null, bestScore = 0;
+  allPosts.forEach(p => {
+    let score = 0;
+    const title = p.title.toLowerCase();
+    const slug  = p.slug.toLowerCase().replace(/-/g,' ');
+    const kw    = ((p.meta && p.meta._yoast_wpseo_focuskw) || '').toLowerCase();
+    q.split(' ').forEach(word => {
+      if (word.length < 3) return;
+      if (title.includes(word)) score += 2;
+      if (slug.includes(word))  score += 2;
+      if (kw.includes(word))    score += 3;
+    });
+    if (score > bestScore) { bestScore = score; bestPost = p; }
+  });
+
+  const postInfo = bestPost && bestScore > 0
+    ? `\nBedste match: "${bestPost.title}" (/${bestPost.slug}/)`
+    : '\nIngen tæt matching side fundet — tjek manuelt.';
+
+  const posRound = Math.round(position);
+  const gap = Math.max(0, posRound - 3);
+
+  alert(`Quick Win Forslag\n${'─'.repeat(40)}\nSøgeord: "${query}"\nNuværende position: ${position} (${impressions} visninger)\nGap til top-3: ~${gap} pladser\n${postInfo}\n\nHandlingsforslag:\n• Tilføj søgeordet til meta title (maks 60 tegn)\n• Brug søgeordet tidligt i meta beskrivelsen\n• Overvej at styrke H1/H2 med søgeordet\n• Interne links med søgeordet som ankertekst`);
+}
+
+async function fixCtrForPage(url) {
+  const log = document.getElementById('ctr-fix-log');
+  if (log) { log.style.display = 'block'; log.textContent = 'Sender til Gemini…\n'; }
+  try {
+    const res = await fetch('/api/gsc/fix-ctr', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url})
+    });
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (log) { log.textContent += decoder.decode(value); log.scrollTop = log.scrollHeight; }
+    }
+  } catch(e) {
+    if (log) log.textContent += 'Fejl: ' + e.message;
+  }
 }
 
 loadPosts();
@@ -1519,6 +1702,155 @@ def linking_build_stream(wfile, limit=10):
     w(f"Færdig: {added} nye links tilføjet")
 
 
+def gsc_fix_ctr_stream(wfile, url):
+    """
+    Henter top-søgeord for en side fra GSC, henter nuværende meta fra WP,
+    kalder Gemini for at rewrite meta title + beskrivelse, gemmer tilbage til WP.
+    Streamer log til wfile.
+    """
+    import re as _re
+    import json as _json
+    from datetime import date, timedelta
+
+    def w(msg):
+        try:
+            wfile.write((msg + "\n").encode())
+            wfile.flush()
+        except Exception:
+            pass
+
+    # Ekstraher slug fra URL
+    slug_m = _re.search(r'mirapass\.dk/([^/]+)/?$', url)
+    slug = slug_m.group(1) if slug_m else ''
+    w(f"Side: {url}")
+    w(f"Slug: {slug}\n")
+
+    # Hent top-5 søgeord for siden (approximeret via query-data + slug)
+    end_d   = date.today() - timedelta(days=1)
+    start_d = date.today() - timedelta(days=29)
+    w("Henter søgeord fra GSC…")
+    query_data = gsc_fetch(
+        "https://mirapass.dk/",
+        start_d.isoformat(), end_d.isoformat(),
+        ["query"]
+    )
+    query_rows = query_data.get("rows", [])
+
+    # Match søgeord til siden via slug-ord
+    slug_words = [w2 for w2 in slug.split('-') if len(w2) > 3]
+    matched = []
+    for r in query_rows:
+        q = r["keys"][0].lower()
+        score = sum(1 for sw in slug_words if sw in q)
+        if score > 0:
+            matched.append((score, r))
+    matched.sort(key=lambda x: (-x[0], -x[1]["impressions"]))
+    top_queries = [r["keys"][0] for _, r in matched[:5]]
+    if not top_queries:
+        # Fallback: bare top-5 queries generelt
+        top_queries = [r["keys"][0] for r in query_rows[:5]]
+    w(f"Top søgeord: {', '.join(top_queries)}\n")
+
+    # Hent nuværende meta fra WP
+    w("Henter nuværende meta fra WordPress…")
+    try:
+        resp = requests.get(
+            f"{WP_BASE}/posts",
+            auth=wp_auth(),
+            params={"slug": slug, "context": "edit", "status": "publish,future"},
+            timeout=20,
+        )
+        posts = resp.json()
+    except Exception as e:
+        w(f"Fejl ved WP-opslag: {e}")
+        return
+
+    if not posts or not isinstance(posts, list):
+        w(f"Ingen WP-indlæg fundet for slug '{slug}'")
+        return
+
+    post = posts[0]
+    pid  = post["id"]
+    title_rendered = post.get("title", {}).get("rendered", "") if isinstance(post.get("title"), dict) else post.get("title", "")
+    m    = post.get("meta", {}) or {}
+    cur_mt  = (m.get("_yoast_wpseo_title",    "") or "").strip()
+    cur_md  = (m.get("_yoast_wpseo_metadesc", "") or "").strip()
+    w(f"Titel: {title_rendered}")
+    w(f"Nuv. meta title: {cur_mt or '(mangler)'}")
+    w(f"Nuv. meta desc: {cur_md or '(mangler)'}\n")
+
+    # Kald Gemini
+    w("Kalder Gemini for CTR-optimering…")
+    gemini_url = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        "gemini-2.0-flash:generateContent"
+    )
+    api_key = _gemini_key()
+
+    prompt = f"""Du er SEO-specialist for mirapass.dk (dansk blog om Claude AI).
+En side har lav CTR (under 3%) trods mange visninger.
+
+Side-info:
+- Titel: {title_rendered}
+- Slug: {slug}
+- Nuværende meta title: {cur_mt or '(ingen)'}
+- Nuværende meta beskrivelse: {cur_md or '(ingen)'}
+
+Søgeord folk faktisk bruger for at finde siden:
+{chr(10).join('- ' + q for q in top_queries)}
+
+Skriv en mere klikvenlig meta title og meta beskrivelse.
+Returner KUN valid JSON med disse to felter:
+{{
+  "meta_title": "max 60 tegn inkl. ' | Mirapass'",
+  "meta_desc": "præcis 120-155 tegn, overbevisende og klikvenlig, inkluder vigtigste søgeord"
+}}
+
+Regler:
+- Brug de faktiske søgeord fra listen naturligt
+- Meta title max 60 tegn inkl. ' | Mirapass'
+- Meta desc: 120-155 tegn — tæl grundigt!
+- Dansk, professionelt men tilgængeligt
+- Returner KUN JSON"""
+
+    try:
+        r = requests.post(
+            f"{gemini_url}?key={api_key}",
+            json={"contents": [{"parts": [{"text": prompt}]}],
+                  "generationConfig": {"temperature": 0.5}},
+            timeout=30,
+        )
+        raw_resp = r.json()
+        text = raw_resp["candidates"][0]["content"]["parts"][0]["text"]
+        text = _re.sub(r'^```(?:json)?\s*', '', text.strip(), flags=_re.MULTILINE)
+        text = _re.sub(r'\s*```$', '', text.strip(), flags=_re.MULTILINE)
+        generated = _json.loads(text.strip())
+    except Exception as e:
+        w(f"Gemini fejl: {e}")
+        return
+
+    new_mt = generated.get("meta_title", "")
+    new_md = generated.get("meta_desc", "")
+    w(f"\nNy meta title ({len(new_mt)} tegn): {new_mt}")
+    w(f"Ny meta desc  ({len(new_md)} tegn): {new_md}\n")
+
+    # Gem til WordPress
+    w("Gemmer til WordPress…")
+    save = requests.post(
+        f"{WP_BASE}/posts/{pid}",
+        auth=wp_auth(),
+        json={"meta": {
+            "_yoast_wpseo_title":    new_mt,
+            "_yoast_wpseo_metadesc": new_md,
+        }},
+        timeout=30,
+    )
+    if save.status_code == 200:
+        w(f"✅ Gemt! (#{pid})")
+    else:
+        w(f"❌ Gem fejlede (HTTP {save.status_code}): {save.text[:200]}")
+
+
 def fetch_posts():
     resp = requests.get(
         f"{WP_BASE}/posts",
@@ -1644,6 +1976,16 @@ class Handler(BaseHTTPRequestHandler):
                 qs    = parse_qs(parsed.query)
                 limit = int(qs.get("limit", ["10"])[0])
                 linking_build_stream(self.wfile, limit=limit)
+            except Exception as e:
+                try: self.wfile.write(f"\nFejl: {e}\n".encode())
+                except Exception: pass
+        elif path == "/api/gsc/fix-ctr":
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                body   = self.rfile.read(length) if length else b"{}"
+                data   = json.loads(body)
+                url    = data.get("url", "")
+                gsc_fix_ctr_stream(self.wfile, url)
             except Exception as e:
                 try: self.wfile.write(f"\nFejl: {e}\n".encode())
                 except Exception: pass
