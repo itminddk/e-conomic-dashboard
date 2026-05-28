@@ -33,10 +33,24 @@ GSC_SCOPES      = "https://www.googleapis.com/auth/webmasters.readonly"
 _gsc_oauth_state = {}   # temp state: {state: client_info}
 
 def _gsc_client_info():
+    """Henter GSC client_id + client_secret fra Keychain, ellers fra fil."""
+    r = subprocess.run(
+        ["security", "find-generic-password", "-s", "mirapass-gsc-client", "-a", "client", "-w"],
+        capture_output=True, text=True)
+    if r.returncode == 0 and r.stdout.strip():
+        return json.loads(r.stdout.strip())
+    # Fallback: læs fra fil og gem i Keychain til næste gang
     with open(GSC_CREDS_FILE) as f:
         raw = json.load(f)
-    key = list(raw.keys())[0]
-    return raw[key]
+    info = raw[list(raw.keys())[0]]
+    client = {"client_id": info["client_id"], "client_secret": info["client_secret"],
+              "auth_uri": info.get("auth_uri", "https://accounts.google.com/o/oauth2/auth"),
+              "token_uri": info.get("token_uri", "https://oauth2.googleapis.com/token")}
+    subprocess.run(
+        ["security", "add-generic-password", "-s", "mirapass-gsc-client",
+         "-a", "client", "-w", json.dumps(client), "-U"],
+        capture_output=True)
+    return client
 
 def _gsc_token():
     """Henter gemt GSC token fra Keychain. Returnerer None hvis ikke autoriseret."""
@@ -85,7 +99,9 @@ def gsc_auth_url() -> str:
 
 def gsc_handle_callback(code: str, state: str) -> bool:
     """Udveksler auth-kode for tokens og gemmer i Keychain."""
-    c = _gsc_oauth_state.pop(state, None) or _gsc_client_info()
+    c = _gsc_oauth_state.pop(state, None)
+    if c is None:
+        return False  # Ukendt/udløbet/forfalsket state — afvis
     r = requests.post("https://oauth2.googleapis.com/token", data={
         "client_id":     c["client_id"],
         "client_secret": c["client_secret"],
@@ -1894,10 +1910,10 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
-            except Exception as e:
+            except Exception:
                 self.send_response(500)
                 self.end_headers()
-                self.wfile.write(str(e).encode())
+                self.wfile.write(b'{"error":"intern fejl"}')
         elif path == "/auth/gsc":
             url = gsc_auth_url()
             self.send_response(302)
@@ -1944,54 +1960,77 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
-            except Exception as e:
+            except Exception:
                 self.send_response(500)
                 self.end_headers()
-                self.wfile.write(str(e).encode())
+                self.wfile.write(b'{"error":"intern fejl"}')
         else:
             self.send_response(404)
             self.end_headers()
 
-    def do_POST(self):
-        parsed = urlparse(self.path)
-        path   = parsed.path
+    def _csrf_ok(self):
+        """Tjekker at POST kommer fra dashboardet selv (ikke cross-origin)."""
+        origin  = self.headers.get("Origin",  "")
+        referer = self.headers.get("Referer", "")
+        allowed = f"http://localhost:{PORT}"
+        if origin  and not origin.startswith(allowed):  return False
+        if referer and not referer.startswith(allowed): return False
+        return True
+
+    def _send_stream_headers(self):
         self.send_response(200)
         self.send_header("Content-Type", "text/plain; charset=utf-8")
         self.end_headers()
+
+    def _write(self, msg):
+        try: self.wfile.write(msg.encode())
+        except Exception: pass
+
+    def do_POST(self):
+        if not self._csrf_ok():
+            self.send_response(403)
+            self.end_headers()
+            return
+
+        parsed = urlparse(self.path)
+        path   = parsed.path
+        self._send_stream_headers()
+
         if path == "/api/seo/generate":
             try:
                 seo_generate_stream(self.wfile)
-            except Exception as e:
-                try: self.wfile.write(f"\nFejl: {e}\n".encode())
-                except Exception: pass
+            except Exception:
+                self._write("\nIntern fejl — se server-log\n")
+
         elif path == "/api/linking/fix":
             try:
                 linking_fix_stream(self.wfile)
-            except Exception as e:
-                try: self.wfile.write(f"\nFejl: {e}\n".encode())
-                except Exception: pass
+            except Exception:
+                self._write("\nIntern fejl — se server-log\n")
+
         elif path == "/api/linking/build":
             try:
-                from urllib.parse import parse_qs
                 qs    = parse_qs(parsed.query)
-                limit = int(qs.get("limit", ["10"])[0])
+                limit = max(1, min(100, int(qs.get("limit", ["10"])[0])))
                 linking_build_stream(self.wfile, limit=limit)
-            except Exception as e:
-                try: self.wfile.write(f"\nFejl: {e}\n".encode())
-                except Exception: pass
+            except Exception:
+                self._write("\nIntern fejl — se server-log\n")
+
         elif path == "/api/gsc/fix-ctr":
             try:
                 length = int(self.headers.get("Content-Length", 0))
                 body   = self.rfile.read(length) if length else b"{}"
                 data   = json.loads(body)
                 url    = data.get("url", "")
-                gsc_fix_ctr_stream(self.wfile, url)
-            except Exception as e:
-                try: self.wfile.write(f"\nFejl: {e}\n".encode())
-                except Exception: pass
+                if not url.startswith("https://mirapass.dk/"):
+                    self._write("Fejl: ugyldig URL\n")
+                else:
+                    gsc_fix_ctr_stream(self.wfile, url)
+            except Exception:
+                self._write("\nIntern fejl — se server-log\n")
+
         else:
-            try: self.wfile.write(b"404\n")
-            except Exception: pass
+            self._write("404\n")
 
 
 PORT = 7771
