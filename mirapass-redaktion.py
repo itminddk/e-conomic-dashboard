@@ -1430,7 +1430,6 @@ function renderGSC() {
       <div id="gsc-404-log" style="display:none;background:#0d1117;border:1px solid var(--border);border-radius:6px;padding:1rem;margin-bottom:1rem;font-family:monospace;font-size:.8rem;max-height:140px;overflow-y:auto;color:#e6edf3;white-space:pre-wrap"></div>
       <div id="gsc-404-section"><div class="loading" style="padding:0"><div class="loading-spinner"></div>Tjekker URLs for 404-fejl…</div></div>
     </div>`;
-}
 
   // Load 404s async after rendering the rest — include impressions/clicks for display
   const pageUrls = pRows.map(r => ({ url: r.keys[0], impressions: r.impressions, clicks: r.clicks }));
