@@ -1542,11 +1542,13 @@ function renderGA() {
 }
 
 /* ── Auto-fix ─────────────────────────── */
-async function autoFix(url, action) {
+async function autoFix(url, action, btn) {
   const log = document.getElementById('autofix-log');
   log.style.display = 'block';
   log.textContent = '';
   log.scrollIntoView({behavior:'smooth', block:'nearest'});
+  if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+  let success = false;
   try {
     const res = await fetch('/api/autofix', {
       method: 'POST',
@@ -1558,13 +1560,27 @@ async function autoFix(url, action) {
     while (true) {
       const {done, value} = await reader.read();
       if (done) break;
-      log.textContent += decoder.decode(value);
+      const chunk = decoder.decode(value);
+      log.textContent += chunk;
       log.scrollTop = log.scrollHeight;
+      if (chunk.includes('verificeret') || chunk.includes('Gemt')) success = true;
     }
-    // Refresh opportunity data after fix
-    oppData = null;
+    // Mark row as fixed — don't reset oppData (score is historical GSC/GA data)
+    if (btn) {
+      if (success) {
+        btn.textContent = '✓ Gemt';
+        btn.style.background = '#3fb95022';
+        btn.style.color = '#3fb950';
+        btn.style.borderColor = '#3fb950';
+      } else {
+        btn.textContent = 'Fejl';
+        btn.style.color = '#f85149';
+        btn.disabled = false;
+      }
+    }
   } catch(e) {
     log.textContent += 'Fejl: ' + e.message;
+    if (btn) { btn.disabled = false; btn.textContent = 'Fix'; }
   }
 }
 
@@ -1613,7 +1629,7 @@ function renderOpportunities() {
       <td style="text-align:center">${durStr}</td>
       <td style="text-align:center">${scoreBar} <span style="font-size:.8rem;color:var(--muted)">${d.opportunity}</span></td>
       <td><span style="background:${color}22;color:${color};border-radius:4px;padding:.15rem .5rem;font-size:.78rem;white-space:nowrap" title="${tip}">${label}</span></td>
-      <td><button onclick="autoFix('${d.url}','${d.action}')" style="background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:.25rem .6rem;cursor:pointer;font-size:.78rem;color:var(--text)">Fix</button></td>
+      <td><button onclick="autoFix('${d.url}','${d.action}',this)" style="background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:.25rem .6rem;cursor:pointer;font-size:.78rem;color:var(--text)">⚡ Fix</button></td>
     </tr>`;
   }).join('');
 
@@ -1630,6 +1646,7 @@ function renderOpportunities() {
       <button onclick="oppData=null;showOpportunities(document.querySelector('.tab.active'))" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:.35rem .8rem;cursor:pointer;font-size:.8rem">Opdater</button>
     </div>
     <div id="autofix-log" style="display:none;background:#0d1117;border:1px solid var(--border);border-radius:6px;padding:1rem;margin-bottom:1rem;font-family:monospace;font-size:.8rem;max-height:200px;overflow-y:auto;color:#e6edf3;white-space:pre-wrap"></div>
+    <p style="font-size:.78rem;color:var(--muted);margin-bottom:.75rem">ℹ️ Scoren afspejler historisk GSC/GA-data (position, klik, CTR). Ændringer i WordPress gemmes med det samme, men scoren forbedres gradvist over 2–4 uger efterhånden som Google re-indekserer.</p>
     <table style="font-size:.83rem">
       <thead><tr>
         <th>Side</th>
@@ -2360,15 +2377,34 @@ Returner KUN valid JSON:
         w(f'  meta desc:   "{gen.get("meta_desc","")[:80]}..."  ({len(gen.get("meta_desc",""))} tegn)')
         w(f'  begrundelse: {gen.get("reasoning","")}')
 
+        new_mt = gen.get("meta_title","").strip()
+        new_md = gen.get("meta_desc","").strip()
         save = requests.post(f"{WP_BASE}/posts/{pid}", auth=wp_auth(),
             json={"meta": {
-                "_yoast_wpseo_title":    gen.get("meta_title",""),
-                "_yoast_wpseo_metadesc": gen.get("meta_desc",""),
+                "_yoast_wpseo_title":    new_mt,
+                "_yoast_wpseo_metadesc": new_md,
             }}, timeout=30)
-        if save.status_code == 200:
-            w("Gemt i WordPress\n")
+        if save.status_code != 200:
+            w(f"Gem fejlede (HTTP {save.status_code}): {save.text[:200]}\n")
         else:
-            w(f"Gem fejlede (HTTP {save.status_code})\n")
+            # Verificer at felterne faktisk landede
+            verify = requests.get(f"{WP_BASE}/posts/{pid}", auth=wp_auth(),
+                params={"context":"edit"}, timeout=15)
+            vm = (verify.json().get("meta") or {}) if verify.status_code == 200 else {}
+            saved_mt = (vm.get("_yoast_wpseo_title","") or "").strip()
+            saved_md = (vm.get("_yoast_wpseo_metadesc","") or "").strip()
+            mt_ok = saved_mt == new_mt
+            md_ok = saved_md == new_md
+            if mt_ok and md_ok:
+                w("Gemt og verificeret i WordPress ✓\n")
+            elif not mt_ok and not md_ok:
+                w(f"ADVARSEL: felterne ser ikke ud til at vaere gemt!\n")
+                w(f"  Forventet title:  '{new_mt[:60]}'\n")
+                w(f"  Gemt title:       '{saved_mt[:60]}'\n")
+                w(f"  (WP returnerede 200, men meta kan vaere skrivebeskyttet)\n")
+            else:
+                w(f"Delvist gemt: title={'OK' if mt_ok else 'FEJL'}, desc={'OK' if md_ok else 'FEJL'}\n")
+            w("NB: GSC/GA-scoren afspejler historisk data — forbedring ses over 2-4 uger.\n")
 
     elif action == "links":
         w("\nSoeger link-muligheder...")
