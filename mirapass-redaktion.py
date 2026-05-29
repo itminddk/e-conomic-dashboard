@@ -375,6 +375,52 @@ h2{font-size:1.05rem;font-weight:600}
 .seo-filter-bar input{width:220px}
 .seo-filter-bar input:focus,.seo-filter-bar select:focus{border-color:var(--blue)}
 
+/* ── Teknisk SEO / Site Audit ───────── */
+.sa-header{display:flex;gap:.75rem;margin-bottom:1.5rem;align-items:center;flex-wrap:wrap}
+.sa-input{flex:1;min-width:220px;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:.5rem .9rem;color:var(--text);font-size:.88rem;outline:none}
+.sa-input:focus{border-color:var(--blue)}
+.sa-btn{background:var(--accent);border:1px solid var(--accent);border-radius:7px;padding:.5rem 1.1rem;color:#fff;font-size:.88rem;font-weight:500;cursor:pointer;transition:background .15s}
+.sa-btn:hover{background:#b8694f}
+.sa-btn:disabled{opacity:.5;cursor:default}
+.sa-score-ring{display:flex;flex-direction:column;align-items:center;gap:.3rem;flex-shrink:0}
+.sa-score-ring text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.sa-kpi-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem;margin-bottom:1.25rem}
+.sa-kpi{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:.85rem 1.1rem}
+.sa-kpi-val{font-size:1.8rem;font-weight:700;line-height:1;color:#fff}
+.sa-kpi-lbl{font-size:.72rem;color:var(--muted);margin-top:.3rem}
+.sa-kpi.red .sa-kpi-val{color:#f85149}
+.sa-kpi.orange .sa-kpi-val{color:var(--orange)}
+.sa-kpi.green .sa-kpi-val{color:var(--green)}
+.sa-kpi.blue .sa-kpi-val{color:var(--blue)}
+.sa-two-col{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem}
+.sa-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.1rem 1.3rem}
+.sa-card h3{font-size:.82rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;margin-bottom:.75rem}
+.sa-meta-row{display:flex;align-items:flex-start;gap:.6rem;padding:.45rem 0;border-bottom:1px solid var(--border)}
+.sa-meta-row:last-child{border-bottom:none}
+.sa-meta-icon{font-size:.95rem;flex-shrink:0;margin-top:.05rem}
+.sa-meta-body{flex:1;min-width:0}
+.sa-meta-label{font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600}
+.sa-meta-val{font-size:.82rem;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:.1rem}
+.sa-meta-len{font-size:.72rem;font-family:monospace;color:var(--muted);flex-shrink:0;margin-top:.25rem}
+.sa-h-tag{font-size:.72rem;font-family:monospace;font-weight:700;color:var(--muted);flex-shrink:0;width:24px;margin-top:.1rem}
+.sa-issue{border-radius:8px;overflow:hidden;margin-bottom:.4rem}
+.sa-issue-btn{width:100%;display:flex;align-items:center;gap:.6rem;padding:.55rem .75rem;cursor:pointer;border:none;text-align:left;font-family:inherit;font-size:.85rem;transition:filter .1s}
+.sa-issue-btn:hover{filter:brightness(1.1)}
+.sa-issue.critical .sa-issue-btn{background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.25);color:#f85149}
+.sa-issue.high .sa-issue-btn{background:rgba(210,153,34,.1);border:1px solid rgba(210,153,34,.25);color:var(--orange)}
+.sa-issue.medium .sa-issue-btn{background:rgba(88,166,255,.1);border:1px solid rgba(88,166,255,.25);color:var(--blue)}
+.sa-issue.low .sa-issue-btn{background:rgba(125,133,144,.1);border:1px solid rgba(125,133,144,.2);color:var(--muted)}
+.sa-issue-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;background:currentColor}
+.sa-issue-title{flex:1;font-weight:500}
+.sa-issue-badge{font-size:.68rem;font-weight:700;padding:.1rem .5rem;border-radius:10px;border:1px solid currentColor;flex-shrink:0}
+.sa-issue-body{padding:.6rem .75rem .75rem;font-size:.82rem;border-left:3px solid currentColor;margin-left:.1rem}
+.sa-issue.critical .sa-issue-body{border-color:#f85149;color:#f85149;background:rgba(248,81,73,.05)}
+.sa-issue.high .sa-issue-body{border-color:var(--orange);color:var(--orange);background:rgba(210,153,34,.05)}
+.sa-issue.medium .sa-issue-body{border-color:var(--blue);color:var(--blue);background:rgba(88,166,255,.05)}
+.sa-issue.low .sa-issue-body{border-color:var(--muted);color:var(--muted);background:rgba(125,133,144,.05)}
+.sa-issue-detail{opacity:.9;margin-bottom:.3rem}
+.sa-issue-fix{font-weight:500}
+
 @media(max-width:700px){
   .stats{grid-template-columns:repeat(2,1fr)}
   .tl-kw{display:none}
@@ -528,6 +574,7 @@ h2{font-size:1.05rem;font-weight:600}
   <button class="tab" onclick="showGSC(this)">Search Console</button>
   <button class="tab" onclick="showGA(this)">Google Analytics</button>
   <button class="tab" onclick="showOpportunities(this)">Muligheder</button>
+  <button class="tab" onclick="showSiteAudit(this)">Teknisk SEO</button>
 </div>
 
 <div id="pane-dashboard" class="pane active"></div>
@@ -540,6 +587,7 @@ h2{font-size:1.05rem;font-weight:600}
 <div id="pane-gsc" class="pane"></div>
 <div id="pane-ga" class="pane"></div>
 <div id="pane-opp" class="pane"></div>
+<div id="pane-siteaudit" class="pane"></div>
 
 <div id="pane-table" class="pane">
   <div class="toolbar">
@@ -1942,6 +1990,168 @@ function updateOppWidget(opps) {
 }
 
 /* ── Sider SEO ─────────────────────────────────────── */
+/* ── Teknisk SEO / Site Audit ─────────────────────────────────────── */
+let siteAuditResult = null;
+
+function showSiteAudit(btn) {
+  showTab('siteaudit', btn);
+  if (siteAuditResult) return; // behold resultat ved genbesøg
+  renderSiteAuditEmpty();
+}
+
+function renderSiteAuditEmpty() {
+  const pane = document.getElementById('pane-siteaudit');
+  pane.innerHTML = `
+    <h2 style="font-size:1.1rem;font-weight:700;margin-bottom:.35rem">Teknisk SEO-analyse</h2>
+    <p style="font-size:.85rem;color:var(--muted);margin-bottom:1.25rem">Analyser en hjemmesides tekniske SEO-sundhed</p>
+    <div class="sa-header">
+      <input id="sa-url-input" class="sa-input" value="mirapass.dk" placeholder="f.eks. mirapass.dk" onkeydown="if(event.key==='Enter')runSiteAudit()">
+      <button class="sa-btn" id="sa-run-btn" onclick="runSiteAudit()">Analyser</button>
+    </div>
+    <div id="sa-result"></div>`;
+}
+
+async function runSiteAudit() {
+  const urlInput = document.getElementById('sa-url-input');
+  const btn = document.getElementById('sa-run-btn');
+  const result = document.getElementById('sa-result');
+  if (!urlInput || !result) return;
+  const url = urlInput.value.trim();
+  if (!url) return;
+  btn.disabled = true;
+  btn.textContent = 'Analyserer…';
+  result.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Henter og analyserer siden…</div>';
+  try {
+    const data = await fetch('/api/site-audit?url=' + encodeURIComponent(url)).then(r=>r.json());
+    if (data.error) throw new Error(data.error);
+    siteAuditResult = data;
+    renderSiteAudit(data);
+  } catch(e) {
+    result.innerHTML = `<p style="color:#f85149;padding:1rem 0">Fejl: ${e.message}</p>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Analyser';
+  }
+}
+
+function renderSiteAudit(d) {
+  const result = document.getElementById('sa-result');
+  if (!result) return;
+
+  const sevCfg = {
+    critical: {label:'Kritisk', cls:'critical'},
+    high:     {label:'Høj',     cls:'high'},
+    medium:   {label:'Mellem',  cls:'medium'},
+    low:      {label:'Lav',     cls:'low'},
+  };
+
+  // Score ring SVG
+  const r = 36, circ = 2 * Math.PI * r;
+  const dash = (d.score / 100) * circ;
+  const color = d.score >= 80 ? '#3fb950' : d.score >= 50 ? '#d29922' : '#f85149';
+  const ring = `<svg width="96" height="96" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="${r}" fill="none" stroke="#30363d" stroke-width="10"/>
+    <circle cx="50" cy="50" r="${r}" fill="none" stroke="${color}" stroke-width="10"
+      stroke-dasharray="${dash.toFixed(1)} ${circ.toFixed(1)}" stroke-linecap="round"
+      transform="rotate(-90 50 50)"/>
+    <text x="50" y="56" text-anchor="middle" font-size="22" font-weight="700" fill="${color}">${d.score}</text>
+  </svg>`;
+
+  const critCount  = d.issues.filter(i=>i.severity==='critical').length;
+  const highCount  = d.issues.filter(i=>i.severity==='high').length;
+  const totalCount = d.issues.length;
+
+  // Meta rows
+  function metaRow(label, val, len, maxLen) {
+    const ok = val && (!maxLen || len <= maxLen);
+    const icon = ok ? '✓' : '✗';
+    const iconCol = ok ? 'var(--green)' : '#f85149';
+    const lenHtml = len !== undefined ? `<span class="sa-meta-len" style="${maxLen&&len>maxLen?'color:#f85149':''}">${len}/${maxLen||'—'}</span>` : '';
+    return `<div class="sa-meta-row">
+      <span class="sa-meta-icon" style="color:${iconCol}">${icon}</span>
+      <div class="sa-meta-body">
+        <div class="sa-meta-label">${label}</div>
+        <div class="sa-meta-val" title="${(val||'').replace(/"/g,'&quot;')}">${val || '<em style="color:var(--muted)">Mangler</em>'}</div>
+      </div>
+      ${lenHtml}
+    </div>`;
+  }
+
+  // Headings
+  function headingRows(tag, arr) {
+    if (!arr.length) return `<div class="sa-meta-row"><span class="sa-h-tag">${tag}</span><span style="font-size:.82rem;color:var(--muted);font-style:italic">Ingen fundet</span></div>`;
+    return arr.slice(0,5).map(h => `<div class="sa-meta-row">
+      <span class="sa-h-tag">${tag}</span>
+      <span class="sa-meta-val">${h}</span>
+    </div>`).join('') + (arr.length>5 ? `<div style="font-size:.72rem;color:var(--muted);padding:.2rem 0">+${arr.length-5} flere…</div>` : '');
+  }
+
+  // Issues grouped by severity
+  let issueHtml = '';
+  for (const sev of ['critical','high','medium','low']) {
+    const group = d.issues.filter(i=>i.severity===sev);
+    if (!group.length) continue;
+    const cfg = sevCfg[sev];
+    issueHtml += `<p style="font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:.9rem 0 .4rem">${cfg.label} (${group.length})</p>`;
+    group.forEach((issue, idx) => {
+      const uid = 'issue-' + sev + '-' + idx;
+      issueHtml += `<div class="sa-issue ${cfg.cls}">
+        <button class="sa-issue-btn" onclick="document.getElementById('${uid}').style.display=document.getElementById('${uid}').style.display==='none'?'block':'none'">
+          <span class="sa-issue-dot"></span>
+          <span class="sa-issue-title">${issue.title}</span>
+          <span class="sa-issue-badge">${cfg.label}</span>
+          <span style="font-size:.75rem;opacity:.5">▾</span>
+        </button>
+        <div id="${uid}" class="sa-issue-body" style="display:none">
+          <p class="sa-issue-detail">${issue.detail}</p>
+          <p class="sa-issue-fix">→ ${issue.fix}</p>
+        </div>
+      </div>`;
+    });
+  }
+
+  const ts = new Date(d.fetchedAt).toLocaleString('da-DK');
+
+  result.innerHTML = `
+    <div style="display:flex;align-items:center;gap:1.5rem;margin-bottom:1.25rem;flex-wrap:wrap">
+      <div class="sa-score-ring">${ring}<span style="font-size:.72rem;color:var(--muted)">SEO Score</span></div>
+      <div class="sa-kpi-strip" style="flex:1">
+        <div class="sa-kpi red"><div class="sa-kpi-val">${critCount}</div><div class="sa-kpi-lbl">Kritiske fejl</div></div>
+        <div class="sa-kpi orange"><div class="sa-kpi-val">${highCount}</div><div class="sa-kpi-lbl">Høj prioritet</div></div>
+        <div class="sa-kpi"><div class="sa-kpi-val">${totalCount}</div><div class="sa-kpi-lbl">Problemer i alt</div></div>
+        <div class="sa-kpi blue"><div class="sa-kpi-val">${d.headings.h2.length}</div><div class="sa-kpi-lbl">H2-overskrifter</div></div>
+      </div>
+    </div>
+    <p style="font-size:.72rem;color:var(--muted);margin-bottom:1.25rem">Analyseret: <a href="${d.url}" target="_blank" style="color:var(--blue)">${d.url}</a> · ${ts}</p>
+
+    <div class="sa-two-col">
+      <div class="sa-card">
+        <h3>Meta-tags</h3>
+        ${metaRow('Title', d.meta.title, d.meta.titleLength, 65)}
+        ${metaRow('Meta description', d.meta.description, d.meta.descriptionLength, 165)}
+        ${metaRow('Canonical', d.meta.canonical)}
+        ${metaRow('Robots', d.meta.robots || 'Ikke sat (standard: index, follow)')}
+        ${metaRow('OG Title', d.meta.ogTitle)}
+        ${metaRow('OG Description', d.meta.ogDescription)}
+        ${metaRow('OG Image', d.meta.ogImage)}
+      </div>
+      <div class="sa-card">
+        <h3>Overskriftsstruktur</h3>
+        ${d.headings.h1.length !== 1 ? `<p style="font-size:.75rem;color:#f85149;margin-bottom:.5rem">⚠ H1: bør være præcis 1 (fundet ${d.headings.h1.length})</p>` : ''}
+        ${headingRows('H1', d.headings.h1)}
+        ${headingRows('H2', d.headings.h2)}
+        ${headingRows('H3', d.headings.h3)}
+      </div>
+    </div>
+
+    <div class="sa-card" style="margin-top:1rem">
+      <h3>Problemer & anbefalinger <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted)">(${totalCount} fundet)</span></h3>
+      ${totalCount === 0
+        ? '<p style="color:var(--green);font-weight:500">Ingen problemer fundet — siden ser god ud!</p>'
+        : issueHtml}
+    </div>`;
+}
+
 let allPages = [];
 let siderSort = {col:'score', dir:'asc'};
 let siderFilter = '';
@@ -3236,6 +3446,107 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_response(200); self.send_header("Content-Type","application/json"); self.end_headers(); self.wfile.write(body)
             except Exception:
                 self.send_response(500); self.end_headers(); self.wfile.write(b'{"error":"intern fejl"}')
+        elif path == "/api/site-audit":
+            try:
+                import urllib.request as _ureq, re as _re2, html as _html_mod
+                _sa_qs = parse_qs(urlparse(self.path).query)
+                raw_url = _sa_qs.get("url", ["mirapass.dk"])[0]
+                audit_url = raw_url if raw_url.startswith("http") else "https://" + raw_url
+                from urllib.parse import urlparse as _urlp
+                audit_domain = _urlp(audit_url).hostname
+
+                req = _ureq.Request(audit_url, headers={"User-Agent": "Mozilla/5.0 (compatible; SiteAuditBot/1.0)"})
+                with _ureq.urlopen(req, timeout=10) as resp:
+                    page_html = resp.read().decode("utf-8", errors="replace")
+
+                def _meta(attr, name):
+                    for pat in [
+                        rf'<meta[^>]+{attr}=["\'](?:{name})["\'][^>]+content=["\']([^"\']*)["\']',
+                        rf'<meta[^>]+content=["\']([^"\']*)["\'][^>]+{attr}=["\'](?:{name})["\']',
+                    ]:
+                        m = _re2.search(pat, page_html, _re2.I)
+                        if m: return m.group(1).strip()
+                    return None
+
+                title_m = _re2.search(r'<title[^>]*>([^<]*)</title>', page_html, _re2.I)
+                title = title_m.group(1).strip() if title_m else None
+                description = _meta("name", "description")
+                canonical_m = _re2.search(r'<link[^>]+rel=["\']canonical["\'][^>]+href=["\']([^"\']*)["\']', page_html, _re2.I) or \
+                              _re2.search(r'<link[^>]+href=["\']([^"\']*)["\'][^>]+rel=["\']canonical["\']', page_html, _re2.I)
+                canonical = canonical_m.group(1) if canonical_m else None
+                robots = _meta("name", "robots")
+                og_title = _meta("property", "og:title")
+                og_desc  = _meta("property", "og:description")
+                og_img   = _meta("property", "og:image")
+
+                def _headings(tag):
+                    return [_re2.sub(r'<[^>]+>', '', h).strip()
+                            for h in _re2.findall(rf'<{tag}[^>]*>(.*?)</{tag}>', page_html, _re2.S|_re2.I)
+                            if _re2.sub(r'<[^>]+>', '', h).strip()]
+
+                h1s = _headings("h1"); h2s = _headings("h2"); h3s = _headings("h3")
+
+                imgs = _re2.findall(r'<img([^>]*)>', page_html, _re2.I)
+                missing_alt = sum(1 for a in imgs if not _re2.search(r'alt=["\'][^"\']+["\']', a, _re2.I))
+                int_links = sum(1 for h in _re2.findall(r'href=["\']([^"\']+)["\']', page_html, _re2.I)
+                                if h.startswith("/") or audit_domain in h)
+                word_count = len(_re2.sub(r'<[^>]+>', ' ', page_html).split())
+                has_https = audit_url.startswith("https://")
+
+                def _build_issues():
+                    issues = []
+                    tl = len(title) if title else 0
+                    dl = len(description) if description else 0
+                    if not title:
+                        issues.append({"severity":"critical","title":"Manglende title tag","detail":"Siden har ingen <title>.","fix":"Tilføj et unikt title tag på 50-60 tegn med dit primære søgeord."})
+                    elif tl < 30 or tl > 65:
+                        issues.append({"severity":"medium","title":f"Title tag har forkert længde ({tl} tegn)","detail":f"Title er {tl} tegn (anbefalet: 50-60).","fix":"Juster title til 50-60 tegn."})
+                    if not description:
+                        issues.append({"severity":"high","title":"Manglende meta description","detail":"Ingen meta description fundet.","fix":"Tilføj en meta description på 140-160 tegn med en call-to-action og dit primære søgeord."})
+                    elif dl < 100 or dl > 165:
+                        issues.append({"severity":"medium","title":f"Meta description har forkert længde ({dl} tegn)","detail":f"Description er {dl} tegn (anbefalet: 140-160).","fix":"Juster meta description til 140-160 tegn."})
+                    if len(h1s) == 0:
+                        issues.append({"severity":"high","title":"Manglende H1-overskrift","detail":"Siden har ingen H1.","fix":"Tilføj præcis én H1 med dit primære søgeord."})
+                    elif len(h1s) > 1:
+                        issues.append({"severity":"medium","title":f"{len(h1s)} H1-overskrifter fundet","detail":"Google forventer præcis én H1 pr. side.","fix":"Reducer til én H1 og gør resten til H2/H3."})
+                    if len(h2s) == 0:
+                        issues.append({"severity":"medium","title":"Ingen H2-overskrifter","detail":"Manglende H2 svækker indholdsstruktur og keyword-dækning.","fix":"Tilføj H2-overskrifter med sekundære søgeord."})
+                    if not canonical:
+                        issues.append({"severity":"medium","title":"Ingen canonical tag","detail":"Manglende canonical kan skabe duplicate content-problemer.","fix":'Tilføj <link rel="canonical" href="URL"> i <head>.'})
+                    if not og_title or not og_img:
+                        missing = ", ".join(x for x, v in [("og:title", og_title), ("og:image", og_img)] if not v)
+                        issues.append({"severity":"low","title":"Ufuldstændig Open Graph","detail":f"Mangler: {missing}.","fix":"Tilføj Open Graph-tags for bedre deling på sociale medier."})
+                    if missing_alt > 0:
+                        issues.append({"severity":"medium","title":f"{missing_alt} billeder mangler alt-tekst","detail":"Billeder uden alt-tekst misser keyword-muligheder og skader tilgængelighed.","fix":"Tilføj beskrivende alt-tekst med relevante søgeord til alle billeder."})
+                    if not has_https:
+                        issues.append({"severity":"critical","title":"Siden kører ikke over HTTPS","detail":"Google straffer ikke-sikre sider.","fix":"Installer SSL-certifikat og tving HTTPS-redirect."})
+                    if int_links < 3:
+                        issues.append({"severity":"high","title":f"Meget få interne links ({int_links})","detail":f"Kun {int_links} interne links fundet.","fix":"Tilføj interne links til relaterede sider for at styrke topic authority."})
+                    if word_count < 300:
+                        issues.append({"severity":"high","title":"Tyndt indhold","detail":f"Ca. {word_count} ord på siden (anbefalet min. 300-500).","fix":"Udvid indholdet med dybde, eksempler og svar på brugernes spørgsmål."})
+                    return issues
+
+                issues = _build_issues()
+                deductions = sum({"critical":20,"high":10,"medium":5,"low":2}[i["severity"]] for i in issues)
+                score = max(0, 100 - deductions)
+
+                import datetime
+                result_body = {
+                    "url": audit_url,
+                    "fetchedAt": datetime.datetime.utcnow().isoformat() + "Z",
+                    "meta": {"title": title, "titleLength": len(title) if title else 0,
+                             "description": description, "descriptionLength": len(description) if description else 0,
+                             "canonical": canonical, "robots": robots,
+                             "ogTitle": og_title, "ogDescription": og_desc, "ogImage": og_img},
+                    "headings": {"h1": h1s, "h2": h2s, "h3": h3s},
+                    "issues": issues,
+                    "score": score,
+                }
+                body = json.dumps(result_body, ensure_ascii=False).encode("utf-8")
+                self.send_response(200); self.send_header("Content-Type","application/json; charset=utf-8"); self.end_headers(); self.wfile.write(body)
+            except Exception as e:
+                body = json.dumps({"error": str(e)}).encode()
+                self.send_response(400); self.send_header("Content-Type","application/json"); self.end_headers(); self.wfile.write(body)
         else:
             self.send_response(404)
             self.end_headers()
