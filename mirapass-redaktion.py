@@ -1422,7 +1422,122 @@ function renderGSC() {
           <thead><tr><th>Side</th><th style="text-align:right">Vis.</th><th style="text-align:right">CTR</th><th>Top søgeord</th><th></th></tr></thead>
           <tbody>${ctrRows}</tbody>
         </table>`}
+    </div>
+
+    <div style="margin-bottom:2rem">
+      <h2 style="margin-bottom:.5rem">404-fejl <span style="font-size:.8rem;color:var(--muted);font-weight:400">fra Google Search Console</span></h2>
+      <p style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem">Sider Google kender til, men som returnerer 404 — fix dem med et redirect for at genvinde SEO-styrke.</p>
+      <div id="gsc-404-log" style="display:none;background:#0d1117;border:1px solid var(--border);border-radius:6px;padding:1rem;margin-bottom:1rem;font-family:monospace;font-size:.8rem;max-height:140px;overflow-y:auto;color:#e6edf3;white-space:pre-wrap"></div>
+      <div id="gsc-404-section"><div class="loading" style="padding:0"><div class="loading-spinner"></div>Tjekker URLs for 404-fejl…</div></div>
     </div>`;
+}
+
+  // Load 404s async after rendering the rest — include impressions/clicks for display
+  const pageUrls = pRows.map(r => ({ url: r.keys[0], impressions: r.impressions, clicks: r.clicks }));
+  loadGsc404s(pageUrls);
+}
+
+async function loadGsc404s(urls) {
+  const sec = document.getElementById('gsc-404-section');
+  if (!sec) return;
+  try {
+    const res = await fetch('/api/gsc/404s', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({urls})
+    });
+    const data = await res.json();
+    renderGsc404s(data);
+  } catch(e) {
+    if (sec) sec.innerHTML = `<p style="color:#f85149;font-size:.85rem">Fejl ved check: ${e.message}</p>`;
+  }
+}
+
+function renderGsc404s(data) {
+  const sec = document.getElementById('gsc-404-section');
+  if (!sec) return;
+  const errors = (data.errors || []);
+  if (errors.length === 0) {
+    sec.innerHTML = '<p style="color:var(--green);font-size:.85rem;font-weight:500">✓ Ingen 404-fejl fundet i de kendte GSC-sider.</p>';
+    return;
+  }
+  const rows = errors.map((e, idx) => {
+    const slug = e.url.replace('https://mirapass.dk','');
+    const suggestEnc = encodeURIComponent(JSON.stringify(e.suggestion));
+    const urlEnc = encodeURIComponent(e.url);
+    const suggestHtml = e.suggestion
+      ? `<span style="color:var(--muted);font-size:.75rem" title="${e.suggestion.url}">→ ${e.suggestion.title}</span>`
+      : '<span style="color:var(--muted);font-size:.75rem">Ingen match fundet</span>';
+    return `<tr id="row-404-${idx}">
+      <td><a href="${e.url}" target="_blank" style="color:#f85149;font-size:.82rem">${slug}</a></td>
+      <td style="text-align:right;font-size:.8rem">${e.impressions.toLocaleString('da-DK')}</td>
+      <td style="text-align:right;font-size:.8rem">${e.clicks}</td>
+      <td>${suggestHtml}</td>
+      <td style="white-space:nowrap">
+        ${e.suggestion
+          ? `<button onclick="fixRedirect(${idx}, decodeURIComponent('${urlEnc}'), ${JSON.stringify(e.suggestion.url)})"
+               style="background:#238636;color:#fff;border:none;border-radius:5px;padding:.25rem .65rem;cursor:pointer;font-size:.78rem;margin-right:.3rem">
+               301 Redirect →
+             </button>`
+          : ''}
+        <button onclick="copyHtaccess(decodeURIComponent('${urlEnc}'), ${JSON.stringify(e.suggestion ? e.suggestion.url : '')})"
+          style="background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:.25rem .65rem;cursor:pointer;font-size:.78rem">
+          Kopier .htaccess
+        </button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  sec.innerHTML = `
+    <div style="display:flex;align-items:center;gap:1rem;margin-bottom:.75rem;flex-wrap:wrap">
+      <span style="font-size:.82rem;color:#f85149;font-weight:600">${errors.length} 404-fejl fundet</span>
+      <span style="font-size:.78rem;color:var(--muted)">(af ${data.checked} tjekket sider)</span>
+    </div>
+    <div id="gsc-redirect-log" style="display:none;background:#0d1117;border:1px solid var(--border);border-radius:6px;padding:1rem;margin-bottom:1rem;font-family:monospace;font-size:.8rem;max-height:140px;overflow-y:auto;color:#e6edf3;white-space:pre-wrap"></div>
+    <table style="font-size:.82rem">
+      <thead><tr>
+        <th>404-URL</th>
+        <th style="text-align:right">Vis.</th>
+        <th style="text-align:right">Klik</th>
+        <th>Foreslået redirect</th>
+        <th>Fix</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+async function fixRedirect(idx, fromUrl, toUrl) {
+  const log = document.getElementById('gsc-redirect-log');
+  if (log) { log.style.display = 'block'; log.textContent = `Opretter redirect:\n${fromUrl}\n→ ${toUrl}\n`; }
+  try {
+    const res = await fetch('/api/gsc/create-redirect', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({from_url: fromUrl, to_url: toUrl})
+    });
+    const data = await res.json();
+    if (data.ok) {
+      if (log) log.textContent += '✓ Redirect oprettet!\n';
+      const row = document.getElementById('row-404-' + idx);
+      if (row) {
+        row.style.opacity = '.4';
+        row.cells[4].innerHTML = '<span style="color:var(--green);font-size:.8rem;font-weight:500">✓ Redirect aktiv</span>';
+      }
+    } else {
+      if (log) log.textContent += `✗ Fejl: ${data.error}\n\nFallback — brug .htaccess:\nRedirect 301 ${new URL(fromUrl).pathname} ${toUrl}\n`;
+    }
+  } catch(e) {
+    if (log) log.textContent += 'Fejl: ' + e.message;
+  }
+}
+
+function copyHtaccess(fromUrl, toUrl) {
+  const from = new URL(fromUrl).pathname;
+  const to = toUrl || '/';
+  const line = `Redirect 301 ${from} ${to}`;
+  navigator.clipboard.writeText(line).then(() => {
+    alert(`Kopieret til udklipsholder:\n\n${line}\n\nIndsæt i .htaccess i WordPress-roden.`);
+  });
 }
 
 function optimizeForKeyword(query, position, impressions) {
@@ -3598,6 +3713,129 @@ class Handler(BaseHTTPRequestHandler):
                 linking_build_stream(self.wfile, limit=limit)
             except Exception:
                 self._write("\nIntern fejl — se server-log\n")
+
+        elif path == "/api/gsc/404s":
+            try:
+                import urllib.request as _ureq2
+                from urllib.parse import urlparse as _up2
+                length = int(self.headers.get("Content-Length", 0))
+                body   = self.rfile.read(length) if length else b"{}"
+                data   = json.loads(body)
+                urls   = data.get("urls", [])
+
+                # Load WP posts for redirect suggestions
+                def _slug_words(s):
+                    return set(w for w in s.replace('-',' ').split() if len(w) > 2)
+
+                wp_posts = []
+                try:
+                    wp_posts = fetch_posts()
+                except Exception:
+                    pass
+
+                def _best_match(path_str):
+                    path_str = path_str.strip('/')
+                    pw = _slug_words(path_str)
+                    if not pw:
+                        return None
+                    best, best_score = None, 0
+                    for p in wp_posts:
+                        sw = _slug_words(p.get('slug',''))
+                        score = len(pw & sw)
+                        if score > best_score:
+                            best_score = score
+                            best = p
+                    if best and best_score > 0:
+                        return {"title": best['title'], "url": f"https://mirapass.dk/{best['slug']}/"}
+                    return None
+
+                # Build impressions map from cached GSC data if available
+                # (We pass impressions from JS; here we just check HTTP status)
+                errors = []
+                checked = 0
+                for entry in urls[:80]:  # cap at 80 to avoid long wait
+                    url_str = entry if isinstance(entry, str) else entry.get('url','')
+                    impressions = entry.get('impressions', 0) if isinstance(entry, dict) else 0
+                    clicks = entry.get('clicks', 0) if isinstance(entry, dict) else 0
+                    if not url_str.startswith('https://mirapass.dk'):
+                        continue
+                    checked += 1
+                    try:
+                        req = _ureq2.Request(url_str, headers={"User-Agent":"Mozilla/5.0"}, method="HEAD")
+                        with _ureq2.urlopen(req, timeout=6) as resp:
+                            status = resp.status
+                    except Exception as e:
+                        err_str = str(e)
+                        # urllib raises HTTPError for 4xx/5xx
+                        import urllib.error as _uerr
+                        if hasattr(e, 'code'):
+                            status = e.code
+                        else:
+                            continue
+                    if status == 404:
+                        path_part = _up2(url_str).path
+                        suggestion = _best_match(path_part)
+                        errors.append({
+                            "url": url_str,
+                            "status": status,
+                            "impressions": impressions,
+                            "clicks": clicks,
+                            "suggestion": suggestion,
+                        })
+
+                result = {"errors": errors, "checked": checked}
+                resp_body = json.dumps(result, ensure_ascii=False).encode("utf-8")
+                self.send_response(200); self.send_header("Content-Type","application/json; charset=utf-8"); self.end_headers(); self.wfile.write(resp_body)
+            except Exception as e:
+                self.send_response(500); self.send_header("Content-Type","application/json"); self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode())
+
+        elif path == "/api/gsc/create-redirect":
+            try:
+                import urllib.request as _ureq3, urllib.error as _uerr3, base64 as _b64
+                length = int(self.headers.get("Content-Length", 0))
+                body   = self.rfile.read(length) if length else b"{}"
+                data   = json.loads(body)
+                from_url = data.get("from_url", "")
+                to_url   = data.get("to_url", "")
+
+                if not from_url.startswith("https://mirapass.dk") or not to_url:
+                    resp_body = json.dumps({"ok": False, "error": "Ugyldig URL"}).encode()
+                    self.send_response(400); self.send_header("Content-Type","application/json"); self.end_headers(); self.wfile.write(resp_body)
+                else:
+                    from urllib.parse import urlparse as _up3
+                    from_path = _up3(from_url).path.rstrip('/')
+
+                    # Try Redirection plugin REST API (common WP plugin)
+                    user, pw = _auth()
+                    token = _b64.b64encode(f"{user}:{pw}".encode()).decode()
+                    redir_payload = json.dumps({
+                        "url": from_path,
+                        "action_type": "url",
+                        "action_data": {"url": to_url},
+                        "match_type": "url",
+                        "group_id": 1,
+                        "status": "enabled",
+                        "regex": False,
+                    }).encode("utf-8")
+                    req = _ureq3.Request(
+                        "https://mirapass.dk/wp-json/redirection/v1/redirect",
+                        data=redir_payload,
+                        headers={"Authorization": f"Basic {token}", "Content-Type": "application/json"},
+                        method="POST"
+                    )
+                    try:
+                        with _ureq3.urlopen(req, timeout=10) as resp:
+                            redir_resp = json.loads(resp.read())
+                        resp_body = json.dumps({"ok": True, "id": redir_resp.get("id")}).encode()
+                        self.send_response(200); self.send_header("Content-Type","application/json"); self.end_headers(); self.wfile.write(resp_body)
+                    except Exception as e2:
+                        # Plugin not available — return error so JS shows .htaccess fallback
+                        resp_body = json.dumps({"ok": False, "error": f"Redirection-plugin ikke tilgængeligt: {e2}"}).encode()
+                        self.send_response(200); self.send_header("Content-Type","application/json"); self.end_headers(); self.wfile.write(resp_body)
+            except Exception as e:
+                resp_body = json.dumps({"ok": False, "error": str(e)}).encode()
+                self.send_response(500); self.send_header("Content-Type","application/json"); self.end_headers(); self.wfile.write(resp_body)
 
         elif path == "/api/gsc/fix-ctr":
             try:
