@@ -523,6 +523,7 @@ h2{font-size:1.05rem;font-weight:600}
   <button class="tab" onclick="showTab('timeline',this)">Tidslinje</button>
   <button class="tab" onclick="showTab('table',this)">Alle opslag</button>
   <button class="tab" onclick="showTab('seo',this)">SEO Analyse</button>
+  <button class="tab" onclick="showSider(this)">Sider SEO</button>
   <button class="tab" onclick="showLinking(this)">Intern Linking</button>
   <button class="tab" onclick="showGSC(this)">Search Console</button>
   <button class="tab" onclick="showGA(this)">Google Analytics</button>
@@ -534,6 +535,7 @@ h2{font-size:1.05rem;font-weight:600}
   <div class="loading"><div class="loading-spinner"></div>Indlæser…</div>
 </div>
 <div id="pane-seo" class="pane"></div>
+<div id="pane-sider" class="pane"></div>
 <div id="pane-linking" class="pane"></div>
 <div id="pane-gsc" class="pane"></div>
 <div id="pane-ga" class="pane"></div>
@@ -1939,6 +1941,217 @@ function updateOppWidget(opps) {
     <button onclick="showOpportunities(getTabBtn('Muligheder'))" style="margin-top:.8rem;width:100%;background:transparent;border:1px solid var(--border);border-radius:6px;padding:.35rem;font-size:.76rem;color:var(--muted);cursor:pointer" onmouseover="this.style.color='var(--accent)';this.style.borderColor='var(--accent)'" onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border)'">Se alle muligheder →</button>`;
 }
 
+/* ── Sider SEO ─────────────────────────────────────── */
+let allPages = [];
+let siderSort = {col:'score', dir:'asc'};
+let siderFilter = '';
+
+async function showSider(btn) {
+  showTab('sider', btn);
+  if (allPages.length) { renderSider(); return; }
+  document.getElementById('pane-sider').innerHTML = '<div class="loading"><div class="loading-spinner"></div>Henter WordPress-sider…</div>';
+  try {
+    allPages = await fetch('/api/pages').then(r=>r.json());
+    renderSider();
+  } catch(e) {
+    document.getElementById('pane-sider').innerHTML = `<p style="color:#f85149;padding:2rem">Fejl: ${e.message}</p>`;
+  }
+}
+
+function pageChecks(p) {
+  const m   = p.meta || {};
+  const kw  = (m._yoast_wpseo_focuskw  || '').trim();
+  const mt  = (m._yoast_wpseo_title    || '').trim();
+  const md  = (m._yoast_wpseo_metadesc || '').trim();
+  const img = !!p.featured_media;
+  const wc  = wordCount(p.content);
+
+  const checks = [
+    { id:'kw', label:'Focus kw',    ok: kw.length > 0,                          warn: false },
+    { id:'mt', label:'Meta title',  ok: mt.length > 0 && mt.length <= 60,       warn: mt.length > 0 && mt.length > 60 },
+    { id:'md', label:'Meta beskr.', ok: md.length >= 70 && md.length <= 155,    warn: md.length > 0 && (md.length < 70 || md.length > 155) },
+    { id:'img',label:'Billede',     ok: img,                                     warn: false },
+    { id:'len',label:'Indhold',     ok: wc >= 300,                               warn: wc >= 100 && wc < 300 },
+  ];
+
+  const score    = checks.reduce((a,c) => a + (c.ok ? (c.id==='kw'||c.id==='mt'||c.id==='md' ? 2 : 1) : c.warn ? 0.5 : 0), 0);
+  const maxScore = 8;
+  return { checks, score, maxScore, kw, mt, md, img, wc };
+}
+
+function renderSider() {
+  const pane = document.getElementById('pane-sider');
+  if (!allPages.length) { pane.innerHTML='<p style="padding:2rem;color:var(--muted)">Ingen sider fundet.</p>'; return; }
+
+  const rows = allPages.map(p => ({ p, ...pageChecks(p) }));
+
+  const highPri = rows.filter(r => r.score/r.maxScore < 0.5).length;
+  const medPri  = rows.filter(r => { const x=r.score/r.maxScore; return x>=0.5 && x<0.85; }).length;
+  const okCnt   = rows.filter(r => r.score/r.maxScore >= 0.85).length;
+  const noMt    = rows.filter(r => !(r.mt)).length;
+  const noMd    = rows.filter(r => !(r.md)).length;
+
+  const q = siderFilter.toLowerCase();
+  let filtered = rows.filter(r => !q || r.p.title.toLowerCase().includes(q) || r.p.slug.includes(q));
+  filtered.sort((a,b) => {
+    let va, vb;
+    if (siderSort.col==='score') { va=a.score; vb=b.score; }
+    else if (siderSort.col==='wc') { va=a.wc; vb=b.wc; }
+    else { va=a.p.title; vb=b.p.title; }
+    if (va<vb) return siderSort.dir==='asc'?-1:1;
+    if (va>vb) return siderSort.dir==='asc'?1:-1;
+    return 0;
+  });
+
+  function sBtn(col,lbl) {
+    const act = siderSort.col===col;
+    return `<button class="seo-sort-btn${act?' '+siderSort.dir:''}" onclick="setSiderSort('${col}')">${lbl}</button>`;
+  }
+
+  const tableRows = filtered.map(({p, checks, score, maxScore, wc}) => {
+    const sc  = scoreClass(score, maxScore);
+    const pct = Math.round(score/maxScore*100);
+    const chips = checks.map(checkChip).join(' ');
+    const badge = p.status==='publish'
+      ? '<span class="tl-badge badge-publish">Udgivet</span>'
+      : `<span class="tl-badge badge-future">${p.status}</span>`;
+    const parent = p.parent ? `<span style="color:var(--muted);font-size:.72rem"> ↳ underside</span>` : '';
+    const modDate = p.modified ? new Date(p.modified).toLocaleDateString('da-DK',{day:'numeric',month:'short',year:'numeric'}) : '';
+    return `<tr>
+      <td style="text-align:center"><div class="seo-score ${sc}">${pct}%</div></td>
+      <td>${priorityLabel(score, maxScore)}</td>
+      <td style="font-size:.85rem">
+        <a href="${p.link}" target="_blank" style="color:var(--text);text-decoration:none;font-weight:500" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">${p.title} <span style="color:var(--muted);font-size:.75rem">↗</span></a>${parent}
+      </td>
+      <td>${badge}</td>
+      <td style="font-size:.78rem;color:var(--muted)">${wc}</td>
+      <td style="font-size:.75rem;color:var(--muted)">${modDate}</td>
+      <td style="white-space:nowrap;line-height:1.9">${chips}</td>
+      <td><button onclick="fixPageSeo(${p.id},this)" style="background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:.25rem .65rem;cursor:pointer;font-size:.78rem;color:var(--text)">✨ Fix</button></td>
+    </tr>`;
+  }).join('');
+
+  pane.innerHTML = `
+    <div class="seo-grid">
+      <div class="seo-card red"><div class="seo-card-val">${highPri}</div><div class="seo-card-lbl">Høj prioritet</div></div>
+      <div class="seo-card orange"><div class="seo-card-val">${medPri}</div><div class="seo-card-lbl">Kan forbedres</div></div>
+      <div class="seo-card green"><div class="seo-card-val">${okCnt}</div><div class="seo-card-lbl">OK</div></div>
+      <div class="seo-card orange"><div class="seo-card-val">${noMt}</div><div class="seo-card-lbl">Ingen meta title</div></div>
+      <div class="seo-card orange"><div class="seo-card-val">${noMd}</div><div class="seo-card-lbl">Ingen meta beskr.</div></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;flex-wrap:wrap">
+      <button onclick="fixAllPagesSeo()" style="background:#238636;color:#fff;border:none;border-radius:6px;padding:.5rem 1.1rem;cursor:pointer;font-size:.88rem">
+        ✨ Generer SEO for alle sider
+      </button>
+      <button onclick="allPages=[];showSider(document.querySelector('.tab.active'))" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:.5rem 1rem;cursor:pointer;font-size:.85rem">↻ Opdater</button>
+      <input placeholder="Søg sider…" value="${siderFilter}" oninput="siderFilter=this.value;renderSider()" style="background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:.4rem .75rem;color:var(--text);font-size:.82rem;outline:none">
+      <span style="font-size:.8rem;color:var(--muted);margin-left:auto">${filtered.length} sider</span>
+    </div>
+    <div id="sider-fix-log" style="display:none;background:#0d1117;border:1px solid var(--border);border-radius:6px;padding:1rem;margin-bottom:1rem;font-family:monospace;font-size:.8rem;max-height:220px;overflow-y:auto;color:#e6edf3;white-space:pre-wrap"></div>
+    <table style="font-size:.83rem">
+      <thead><tr>
+        <th style="width:60px;text-align:center">${sBtn('score','Score')}</th>
+        <th style="width:100px">Prioritet</th>
+        <th>${sBtn('title','Side')}</th>
+        <th style="width:90px">Status</th>
+        <th style="width:70px">${sBtn('wc','Ord')}</th>
+        <th style="width:100px">Ændret</th>
+        <th>Tjek</th>
+        <th style="width:70px"></th>
+      </tr></thead>
+      <tbody>${tableRows}</tbody>
+    </table>`;
+}
+
+function setSiderSort(col) {
+  if (siderSort.col===col) siderSort.dir = siderSort.dir==='asc'?'desc':'asc';
+  else { siderSort.col=col; siderSort.dir=col==='score'?'asc':'desc'; }
+  renderSider();
+}
+
+async function fixPageSeo(pageId, btn) {
+  const log = document.getElementById('sider-fix-log');
+  log.style.display = 'block';
+  log.scrollIntoView({behavior:'smooth',block:'nearest'});
+  if (btn) { btn.disabled=true; btn.textContent='⏳'; }
+  let success = false;
+  try {
+    const res = await fetch('/api/pages/seo-fix', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({id: pageId})
+    });
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    while (true) {
+      const {done,value} = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value);
+      log.textContent += chunk;
+      log.scrollTop = log.scrollHeight;
+      if (chunk.includes('verificeret') || chunk.includes('Gemt')) success = true;
+    }
+    if (btn) {
+      btn.textContent = success ? '✓ Gemt' : 'Fejl';
+      btn.style.color = success ? '#3fb950' : '#f85149';
+      btn.style.borderColor = success ? '#3fb950' : '#f85149';
+    }
+    // Reload page data to reflect changes
+    if (success) {
+      allPages = await fetch('/api/pages').then(r=>r.json());
+      renderSider();
+    }
+  } catch(e) {
+    log.textContent += 'Fejl: ' + e.message;
+    if (btn) { btn.disabled=false; btn.textContent='✨ Fix'; }
+  }
+}
+
+async function fixAllPagesSeo() {
+  const log = document.getElementById('sider-fix-log');
+  if (!log) return;
+  log.style.display = 'block';
+  log.textContent = '';
+  log.scrollIntoView({behavior:'smooth',block:'nearest'});
+
+  // Only fix pages missing meta title OR meta desc
+  const toFix = allPages.filter(p => {
+    const m = p.meta || {};
+    const mt = (m._yoast_wpseo_title    || '').trim();
+    const md = (m._yoast_wpseo_metadesc || '').trim();
+    return !mt || !md;
+  });
+
+  if (!toFix.length) { log.textContent = 'Alle sider har allerede meta title og meta beskrivelse ✓'; return; }
+  log.textContent = `Fixer ${toFix.length} sider...\\n\\n`;
+
+  for (const page of toFix) {
+    log.textContent += `─── ${page.title} (#${page.id}) ───\\n`;
+    try {
+      const res = await fetch('/api/pages/seo-fix', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({id: page.id})
+      });
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      while (true) {
+        const {done,value} = await reader.read();
+        if (done) break;
+        log.textContent += decoder.decode(value);
+        log.scrollTop = log.scrollHeight;
+      }
+    } catch(e) {
+      log.textContent += `Fejl: ${e.message}\\n`;
+    }
+    log.textContent += '\\n';
+    await new Promise(r => setTimeout(r, 500)); // lille pause
+  }
+
+  log.textContent += '\\n✅ Alle sider er behandlet. Genindlæser...\\n';
+  allPages = await fetch('/api/pages').then(r=>r.json());
+  renderSider();
+}
+
 loadPosts();
 </script>
 </body>
@@ -2709,6 +2922,109 @@ Returner KUN valid JSON:
     w("Faerdig")
 
 
+def pages_seo_fix_stream(wfile, page_id):
+    import re as _re, json as _json
+    def w(msg):
+        try: wfile.write((msg+"\n").encode()); wfile.flush()
+        except Exception: pass
+
+    # Fetch page
+    resp = requests.get(f"{WP_BASE}/pages/{page_id}", auth=wp_auth(),
+        params={"context":"edit"}, timeout=15)
+    if resp.status_code != 200:
+        w(f"Kunne ikke hente side #{page_id}"); return
+    page = resp.json()
+    title   = (page.get("title") or {}).get("rendered","")
+    raw     = (page.get("content") or {}).get("raw","")
+    plain   = _re.sub(r'<[^>]+>',' ', raw)
+    plain   = _re.sub(r'\s+', ' ', plain).strip()[:1500]
+    m       = page.get("meta") or {}
+    cur_mt  = (m.get("_yoast_wpseo_title","") or "").strip()
+    cur_md  = (m.get("_yoast_wpseo_metadesc","") or "").strip()
+    cur_kw  = (m.get("_yoast_wpseo_focuskw","") or "").strip()
+    slug    = page.get("slug","")
+
+    w(f"Side: {title} (#{page_id})")
+    w(f"Nuv. meta title:  '{cur_mt or '(ingen)'}'")
+    w(f"Nuv. meta beskr.: '{cur_md[:60] + '...' if len(cur_md)>60 else cur_md or '(ingen)'}'")
+    w(f"Nuv. focus kw:    '{cur_kw or '(ingen)'}'")
+    w("")
+
+    api_key = _gemini_key()
+    gemini_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+
+    prompt = f"""Du er SEO-specialist for mirapass.dk (dansk blog/hjemmeside om Claude AI).
+
+WordPress-side: /{slug}/
+Sidetitel: {title}
+Nuværende meta title: {cur_mt or '(ingen)'}
+Nuværende meta beskrivelse: {cur_md or '(ingen)'}
+Nuværende focus keyword: {cur_kw or '(ingen)'}
+
+Sideindhold (uddrag):
+{plain[:1000]}
+
+Opgave: Generer optimerede SEO-felter til denne WordPress-side.
+
+Krav:
+- meta_title: max 60 tegn, indeholder primært søgeord, slutter med "| Mirapass"
+- meta_desc: præcis 120-155 tegn, klikvenlig, inkluderer søgeord naturligt
+- focus_kw: ét primært søgeord (2-4 ord), dansk, høj søgevolumen
+- Returner KUN valid JSON uden forklaring
+
+{{
+  "meta_title": "...",
+  "meta_desc": "...",
+  "focus_kw": "...",
+  "reasoning": "Kort begrundelse max 100 tegn"
+}}"""
+
+    try:
+        r = requests.post(f"{gemini_url}?key={api_key}",
+            json={"contents":[{"parts":[{"text":prompt}]}],
+                  "generationConfig":{"temperature":0.4}}, timeout=30)
+        text = r.json()["candidates"][0]["content"]["parts"][0]["text"]
+        text = _re.sub(r'^```(?:json)?\s*','',text.strip(),flags=_re.MULTILINE)
+        text = _re.sub(r'\s*```$','',text.strip(),flags=_re.MULTILINE)
+        gen  = _json.loads(text.strip())
+    except Exception as e:
+        w(f"Gemini fejl: {e}"); return
+
+    new_mt = gen.get("meta_title","").strip()
+    new_md = gen.get("meta_desc","").strip()
+    new_kw = gen.get("focus_kw","").strip()
+
+    w(f"Genereret meta title:  '{new_mt}' ({len(new_mt)} tegn)")
+    w(f"Genereret meta beskr.: '{new_md}' ({len(new_md)} tegn)")
+    w(f"Genereret focus kw:    '{new_kw}'")
+    w(f"Begrundelse: {gen.get('reasoning','')}")
+    w("")
+
+    # Save to WordPress
+    save = requests.post(f"{WP_BASE}/pages/{page_id}", auth=wp_auth(),
+        json={"meta": {
+            "_yoast_wpseo_title":    new_mt,
+            "_yoast_wpseo_metadesc": new_md,
+            "_yoast_wpseo_focuskw":  new_kw,
+        }}, timeout=30)
+
+    if save.status_code != 200:
+        w(f"Gem fejlede (HTTP {save.status_code})"); return
+
+    # Verify
+    verify = requests.get(f"{WP_BASE}/pages/{page_id}", auth=wp_auth(),
+        params={"context":"edit"}, timeout=15)
+    vm = (verify.json().get("meta") or {}) if verify.status_code == 200 else {}
+    mt_ok = (vm.get("_yoast_wpseo_title","") or "").strip() == new_mt
+    md_ok = (vm.get("_yoast_wpseo_metadesc","") or "").strip() == new_md
+    if mt_ok and md_ok:
+        w("Gemt og verificeret i WordPress ✓")
+    else:
+        w("ADVARSEL: Kunne ikke verificere gem — tjek manuelt")
+    w("=" * 40)
+    w("Færdig")
+
+
 def fetch_posts():
     resp = requests.get(
         f"{WP_BASE}/posts",
@@ -2756,6 +3072,33 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_response(500)
                 self.end_headers()
                 self.wfile.write(b'{"error":"intern fejl"}')
+        elif path == "/api/pages":
+            try:
+                pages, page_n = [], 1
+                while True:
+                    r = requests.get(f"{WP_BASE}/pages", auth=wp_auth(),
+                        params={"per_page":100,"page":page_n,"context":"edit","status":"any"}, timeout=20)
+                    batch = r.json()
+                    if not batch or isinstance(batch, dict): break
+                    pages.extend(batch)
+                    if len(batch) < 100: break
+                    page_n += 1
+                result = [{
+                    "id":       p["id"],
+                    "title":    (p.get("title") or {}).get("rendered",""),
+                    "slug":     p.get("slug",""),
+                    "link":     p.get("link",""),
+                    "status":   p.get("status",""),
+                    "parent":   p.get("parent",0),
+                    "modified": p.get("modified",""),
+                    "meta":     p.get("meta") or {},
+                    "content":  (p.get("content") or {}).get("raw",""),
+                    "featured_media": p.get("featured_media",0),
+                } for p in pages]
+                body = json.dumps(result).encode()
+                self.send_response(200); self.send_header("Content-Type","application/json"); self.end_headers(); self.wfile.write(body)
+            except Exception:
+                self.send_response(500); self.end_headers(); self.wfile.write(b'{"error":"intern fejl"}')
         elif path == "/auth/gsc":
             url = gsc_auth_url()
             self.send_response(302)
@@ -2983,6 +3326,19 @@ class Handler(BaseHTTPRequestHandler):
                     self._write("Fejl: ugyldig URL\n")
                 else:
                     autofix_stream(self.wfile, url, action)
+            except Exception:
+                self._write("Intern fejl\n")
+
+        elif path == "/api/pages/seo-fix":
+            try:
+                length = int(self.headers.get("Content-Length",0))
+                body   = self.rfile.read(length) if length else b"{}"
+                data   = json.loads(body)
+                page_id = int(data.get("id", 0))
+                if not page_id:
+                    self._write("Fejl: manglende side-ID\n")
+                else:
+                    pages_seo_fix_stream(self.wfile, page_id)
             except Exception:
                 self._write("Intern fejl\n")
 
