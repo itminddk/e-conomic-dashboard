@@ -381,6 +381,38 @@ h2{font-size:1.05rem;font-weight:600}
   .col-kw,.col-id,.col-links{display:none}
   .form-row{grid-template-columns:1fr}
 }
+
+/* ── Dashboard / Overblik ────────────── */
+.db-kpi-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:1rem;margin-bottom:1.25rem}
+.db-kpi{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:.85rem 1.1rem;text-align:center}
+.db-kpi .val{font-size:1.45rem;font-weight:700;line-height:1.15}
+.db-kpi .lbl{font-size:.68rem;color:var(--muted);margin-top:.25rem}
+.db-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:1.25rem;margin-bottom:1.25rem}
+.db-widget{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.2rem 1.4rem}
+.db-widget h3{font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:.9rem;font-weight:600;display:flex;justify-content:space-between;align-items:center}
+.db-row{display:flex;justify-content:space-between;align-items:center;padding:.28rem 0;font-size:.82rem}
+.db-row+.db-row{border-top:1px solid var(--border)}
+.db-row .lbl{color:var(--muted)}
+.db-row .val{font-weight:600}
+.db-bar{height:4px;background:var(--border);border-radius:2px;margin:.18rem 0 .5rem}
+.db-bar-fill{height:4px;border-radius:2px;transition:width .5s ease}
+.db-actions{display:grid;grid-template-columns:repeat(4,1fr);gap:.8rem}
+.db-act{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1rem 1.1rem;cursor:pointer;text-align:left;transition:border-color .18s,background .18s}
+.db-act:hover{border-color:var(--accent);background:#1c2333}
+.db-act .icon{font-size:1.3rem;margin-bottom:.4rem;display:block}
+.db-act .albl{font-size:.8rem;font-weight:600;display:block}
+.db-act .asub{font-size:.7rem;color:var(--muted);display:block;margin-top:.2rem}
+.db-spin{display:inline-block;width:11px;height:11px;border:1.5px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+.db-badge{font-size:.64rem;font-weight:600;padding:.1rem .45rem;border-radius:4px}
+.db-badge.ok{background:rgba(63,185,80,.12);color:var(--green)}
+.db-badge.warn{background:rgba(210,153,34,.12);color:var(--orange)}
+.db-badge.err{background:rgba(248,81,73,.08);color:#f85149}
+.db-num-grid{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.8rem}
+.db-num{text-align:center;padding:.5rem;background:var(--bg);border-radius:8px}
+.db-num .v{font-size:1.3rem;font-weight:700;line-height:1.15}
+.db-num .l{font-size:.67rem;color:var(--muted);margin-top:.15rem}
+@media(max-width:900px){.db-grid3{grid-template-columns:1fr 1fr}.db-kpi-strip{grid-template-columns:repeat(3,1fr)}.db-actions{grid-template-columns:1fr 1fr}}
+@media(max-width:600px){.db-grid3{grid-template-columns:1fr}.db-kpi-strip{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
@@ -487,7 +519,8 @@ h2{font-size:1.05rem;font-weight:600}
 </div>
 
 <div class="tabs">
-  <button class="tab active" onclick="showTab('timeline',this)">Tidslinje</button>
+  <button class="tab active" onclick="showDashboard(this)">Overblik</button>
+  <button class="tab" onclick="showTab('timeline',this)">Tidslinje</button>
   <button class="tab" onclick="showTab('table',this)">Alle opslag</button>
   <button class="tab" onclick="showTab('seo',this)">SEO Analyse</button>
   <button class="tab" onclick="showLinking(this)">Intern Linking</button>
@@ -496,7 +529,8 @@ h2{font-size:1.05rem;font-weight:600}
   <button class="tab" onclick="showOpportunities(this)">Muligheder</button>
 </div>
 
-<div id="pane-timeline" class="pane active">
+<div id="pane-dashboard" class="pane active"></div>
+<div id="pane-timeline" class="pane">
   <div class="loading"><div class="loading-spinner"></div>Indlæser…</div>
 </div>
 <div id="pane-seo" class="pane"></div>
@@ -672,6 +706,8 @@ function renderAll() {
   renderTimeline(pub, sched);
   renderTable();
   renderSEO();
+  dashExtData = null; // force external data refresh
+  if (document.getElementById('pane-dashboard').classList.contains('active')) renderDashboardBase();
 }
 
 function fmtDate(d){ return new Date(d).toLocaleDateString('da-DK',{day:'numeric',month:'long',year:'numeric'}) }
@@ -1662,6 +1698,245 @@ function renderOpportunities() {
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
+}
+
+/* ── Dashboard / Overblik ──────────────────────────────── */
+let dashExtData = null;
+
+function getTabBtn(text) {
+  return Array.from(document.querySelectorAll('.tab')).find(t => t.textContent.trim() === text);
+}
+
+async function showDashboard(btn) {
+  showTab('dashboard', btn);
+  if (allPosts.length) renderDashboardBase();
+  if (dashExtData) {
+    updateTrafficWidget(dashExtData.gsc, dashExtData.ga);
+    updateOppWidget(dashExtData.opp);
+  } else {
+    loadDashboardExternal();
+  }
+}
+
+function renderDashboardBase() {
+  const pane = document.getElementById('pane-dashboard');
+  if (!pane) return;
+  if (!allPosts.length) { pane.innerHTML='<div class="loading"><div class="loading-spinner"></div>Indlæser data…</div>'; return; }
+
+  const pub   = allPosts.filter(p => p.status === 'publish');
+  const sched = allPosts.filter(p => p.status === 'future');
+  const now   = new Date();
+  const soon  = new Date(now); soon.setDate(soon.getDate()+7);
+  const soonsched = sched.filter(p => new Date(p.date) <= soon);
+  const n = pub.length || 1;
+
+  // SEO completeness (published only)
+  const hasTitle = pub.filter(p => ((p.meta&&p.meta._yoast_wpseo_title)||'').trim()).length;
+  const hasDesc  = pub.filter(p => ((p.meta&&p.meta._yoast_wpseo_metadesc)||'').trim()).length;
+  const hasKw    = pub.filter(p => ((p.meta&&p.meta._yoast_wpseo_focuskw)||'').trim()).length;
+  const hasExc   = pub.filter(p => (p.excerpt||'').trim()).length;
+  const seoScore = Math.round((hasTitle + hasDesc + hasKw) / (n * 3) * 100);
+  const scoreColor = seoScore >= 80 ? 'var(--green)' : seoScore >= 60 ? 'var(--orange)' : '#f85149';
+
+  // Internal links
+  const inbound   = buildInbound();
+  const orphans   = pub.filter(p => (inbound[p.id]||0) === 0).length;
+  const totalLinks = Object.values(inbound).reduce((a,b)=>a+b, 0);
+  const orphColor = orphans > 0 ? (orphans > 10 ? '#f85149' : 'var(--orange)') : 'var(--green)';
+
+  function bar(count, total, color) {
+    const pct = Math.round(count/(total||1)*100);
+    return `<div class="db-bar"><div class="db-bar-fill" style="width:${pct}%;background:${color}"></div></div>`;
+  }
+  function pct(c,t){ return Math.round(c/(t||1)*100); }
+  function barColor(p){ return p>=80?'var(--green)':p>=60?'var(--orange)':'#f85149'; }
+
+  const seoRows = [
+    ['Meta titel',    hasTitle, n],
+    ['Meta beskr.',   hasDesc,  n],
+    ['Focus keyword', hasKw,    n],
+    ['Excerpt',       hasExc,   n],
+  ].map(([lbl,c,t]) => {
+    const p = pct(c,t), col = barColor(p);
+    return `<div style="margin-bottom:.1rem">
+      <div style="font-size:.74rem;color:var(--muted);display:flex;justify-content:space-between;margin-bottom:.12rem">
+        <span>${lbl}</span><span style="color:${col}">${c}/${t} \xb7 ${p}%</span>
+      </div>
+      ${bar(c, t, col)}</div>`;
+  }).join('');
+
+  pane.innerHTML = `
+    <div class="db-kpi-strip">
+      <div class="db-kpi"><div class="val">${allPosts.length}</div><div class="lbl">Artikler i alt</div></div>
+      <div class="db-kpi"><div class="val" style="color:var(--green)">${pub.length}</div><div class="lbl">Udgivet</div></div>
+      <div class="db-kpi"><div class="val" style="color:var(--orange)">${sched.length}</div><div class="lbl">Planlagt</div></div>
+      <div class="db-kpi"><div class="val" style="color:var(--blue)">${soonsched.length}</div><div class="lbl">N\xe6ste 7 dage</div></div>
+      <div class="db-kpi"><div class="val" style="color:${scoreColor}">${seoScore}%</div><div class="lbl">SEO-sundhed</div></div>
+    </div>
+
+    <div class="db-grid3">
+      <!-- Widget 1: Indhold & SEO -->
+      <div class="db-widget">
+        <h3>Indhold & SEO</h3>
+        ${seoRows}
+        <div style="border-top:1px solid var(--border);margin-top:.6rem;padding-top:.5rem">
+          <div class="db-row"><span class="lbl">Interne links</span><span class="val">${totalLinks}</span></div>
+          <div class="db-row"><span class="lbl" style="color:${orphColor}">For\xe6ldre\xf8se</span><span class="val" style="color:${orphColor}">${orphans} opslag</span></div>
+        </div>
+        <button onclick="showTab('seo',getTabBtn('SEO Analyse'))" style="margin-top:.8rem;width:100%;background:transparent;border:1px solid var(--border);border-radius:6px;padding:.35rem;font-size:.76rem;color:var(--muted);cursor:pointer" onmouseover="this.style.color='var(--accent)';this.style.borderColor='var(--accent)'" onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border)'">\\xc5bn SEO Analyse →</button>
+      </div>
+
+      <!-- Widget 2: S\xf8getrafik (GSC + GA) — filled async -->
+      <div class="db-widget" id="db-widget-traffic">
+        <h3>S\xf8getrafik <span id="db-traffic-status" class="db-spin"></span></h3>
+        <div style="text-align:center;padding:2rem 0;color:var(--muted);font-size:.8rem"><div class="loading-spinner" style="margin:0 auto .6rem"></div>Henter GSC + GA…</div>
+      </div>
+
+      <!-- Widget 3: Muligheder — filled async -->
+      <div class="db-widget" id="db-widget-opp">
+        <h3>Muligheder <span id="db-opp-status" class="db-spin"></span></h3>
+        <div style="text-align:center;padding:2rem 0;color:var(--muted);font-size:.8rem"><div class="loading-spinner" style="margin:0 auto .6rem"></div>Beregner…</div>
+      </div>
+    </div>
+
+    <!-- Quick actions -->
+    <div class="db-widget" style="margin-bottom:0">
+      <h3>Hurtige handlinger</h3>
+      <div class="db-actions">
+        <button class="db-act" onclick="showTab('seo',getTabBtn('SEO Analyse'))">
+          <span class="icon">\U0001f50d</span><span class="albl">SEO Analyse</span><span class="asub">Gennemg\xe5 og optimer metadata</span>
+        </button>
+        <button class="db-act" onclick="showLinking(getTabBtn('Intern Linking'))">
+          <span class="icon">\U0001f517</span><span class="albl">Intern Linking</span><span class="asub">Find og fix for\xe6ldre\xf8se indl\xe6g</span>
+        </button>
+        <button class="db-act" onclick="showOpportunities(getTabBtn('Muligheder'))">
+          <span class="icon">⚡</span><span class="albl">Muligheder</span><span class="asub">Auto-fix SEO med GSC + GA data</span>
+        </button>
+        <button class="db-act" onclick="openModal()">
+          <span class="icon">✍️</span><span class="albl">Planl\xe6g opslag</span><span class="asub">Generer Claude-prompt til ny indhold</span>
+        </button>
+      </div>
+    </div>`;
+}
+
+async function loadDashboardExternal() {
+  const fmt = d => d.toISOString().slice(0,10);
+  const now   = new Date();
+  const end   = fmt(new Date(now.getTime() - 86400000));
+  const start = fmt(new Date(now.getTime() - 30*86400000));
+
+  const [gscRes, gaRes, oppRes] = await Promise.allSettled([
+    fetch(`/api/gsc/data?start=${start}&end=${end}&dims=page`).then(r=>r.json()),
+    fetch('/api/ga/data?type=overview').then(r=>r.json()),
+    fetch('/api/opportunities').then(r=>r.json()),
+  ]);
+
+  dashExtData = {
+    gsc: gscRes.status === 'fulfilled' ? gscRes.value : null,
+    ga:  gaRes.status  === 'fulfilled' ? gaRes.value  : null,
+    opp: oppRes.status === 'fulfilled' ? oppRes.value : null,
+  };
+
+  updateTrafficWidget(dashExtData.gsc, dashExtData.ga);
+  updateOppWidget(dashExtData.opp);
+}
+
+function updateTrafficWidget(gsc, ga) {
+  const el = document.getElementById('db-widget-traffic');
+  if (!el) return;
+
+  let gscHtml = '', gaHtml = '', badge = '';
+
+  if (gsc && !gsc.error) {
+    const rows  = gsc.rows || [];
+    const clicks = rows.reduce((s,r)=>s+(r.clicks||0), 0);
+    const impr   = rows.reduce((s,r)=>s+(r.impressions||0), 0);
+    const avgPos = rows.length ? (rows.reduce((s,r)=>s+(r.position||0),0)/rows.length).toFixed(1) : '–';
+    const avgCtr = impr ? ((clicks/impr)*100).toFixed(1) : '–';
+    const posCol = parseFloat(avgPos)<=5?'var(--green)':parseFloat(avgPos)<=12?'var(--orange)':'#f85149';
+    const ctrCol = parseFloat(avgCtr)>=5?'var(--green)':parseFloat(avgCtr)>=2?'var(--orange)':'#f85149';
+    badge = '<span class="db-badge ok">Forbundet</span>';
+    gscHtml = `
+      <div style="font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:.5rem">Search Console — 30 dage</div>
+      <div class="db-num-grid">
+        <div class="db-num"><div class="v" style="color:var(--blue)">${clicks.toLocaleString('da-DK')}</div><div class="l">Klik</div></div>
+        <div class="db-num"><div class="v">${impr.toLocaleString('da-DK')}</div><div class="l">Visninger</div></div>
+        <div class="db-num"><div class="v" style="color:${posCol}">${avgPos}</div><div class="l">Gns. position</div></div>
+        <div class="db-num"><div class="v" style="color:${ctrCol}">${avgCtr}%</div><div class="l">CTR</div></div>
+      </div>`;
+  } else if (gsc && gsc.error === 'ikke_autoriseret') {
+    badge = '<span class="db-badge err">Ikke forbundet</span>';
+    gscHtml = `<div style="font-size:.8rem;color:var(--muted);padding:.5rem 0 .75rem">Search Console ikke forbundet.<br><a href="/auth/gsc" style="color:var(--accent)">Forbind Google-konto →</a></div>`;
+  } else {
+    gscHtml = `<div style="font-size:.78rem;color:var(--muted);padding:.5rem 0">GSC-data utilg\xe6ngeligt</div>`;
+  }
+
+  if (ga && !ga.error) {
+    const rows   = ga.rows || [];
+    const totS   = rows.reduce((s,r)=>s+parseInt(r.metricValues?.[0]?.value||0), 0);
+    const totU   = rows.reduce((s,r)=>s+parseInt(r.metricValues?.[1]?.value||0), 0);
+    const totNew = rows.reduce((s,r)=>s+parseInt(r.metricValues?.[2]?.value||0), 0);
+    const newPct = totU ? Math.round(totNew/totU*100) : 0;
+    gaHtml = `
+      <div style="font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:.75rem 0 .4rem">Google Analytics — 30 dage</div>
+      <div class="db-row"><span class="lbl">Organiske sessioner</span><span class="val" style="color:var(--green)">${totS.toLocaleString('da-DK')}</span></div>
+      <div class="db-row"><span class="lbl">Brugere</span><span class="val">${totU.toLocaleString('da-DK')}</span></div>
+      <div class="db-row"><span class="lbl">Nye brugere</span><span class="val">${totNew.toLocaleString('da-DK')} (${newPct}%)</span></div>`;
+  } else if (ga && (ga.error === 'ikke_forbundet' || ga.error === 'ingen_property')) {
+    gaHtml = `<div style="font-size:.78rem;color:var(--muted);padding:.5rem 0 0">Analytics ikke konfigureret.<br><a href="/auth/gsc" style="color:var(--accent)">Forbind →</a></div>`;
+  }
+
+  el.innerHTML = `<h3>S\xf8getrafik ${badge}</h3>${gscHtml}${gaHtml}
+    <button onclick="showGSC(getTabBtn('Search Console'))" style="margin-top:.9rem;width:100%;background:transparent;border:1px solid var(--border);border-radius:6px;padding:.35rem;font-size:.76rem;color:var(--muted);cursor:pointer" onmouseover="this.style.color='var(--accent)';this.style.borderColor='var(--accent)'" onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border)'">\xc5bn Search Console →</button>`;
+}
+
+function updateOppWidget(opps) {
+  const el = document.getElementById('db-widget-opp');
+  if (!el) return;
+
+  if (!opps || opps.error || !Array.isArray(opps) || !opps.length) {
+    const msg = (!opps || opps.error) ? 'Forbind GSC og GA for at se muligheder.' : 'Ingen muligheder fundet.';
+    el.innerHTML = `<h3>Muligheder <span class="db-badge warn">Ingen data</span></h3><div style="font-size:.8rem;color:var(--muted);padding:.75rem 0">${msg}</div>`;
+    return;
+  }
+
+  const actionMeta = {
+    meta:       ['#d29922', 'Fix meta'],
+    content:    ['#f85149', 'Forbedr indhold'],
+    engagement: ['#58a6ff', 'Engagement'],
+    links:      ['#3fb950', 'Byg links'],
+  };
+  const counts = {};
+  opps.forEach(d => counts[d.action] = (counts[d.action]||0)+1);
+  const maxN = Math.max(...Object.values(counts), 1);
+
+  const bars = Object.entries(actionMeta).filter(([k])=>counts[k]).map(([k,[c,l]])=>{
+    const n = counts[k]||0;
+    const w = Math.round(n/maxN*100);
+    return `<div style="display:flex;align-items:center;gap:.55rem;margin-bottom:.4rem;font-size:.79rem">
+      <span style="width:88px;color:var(--muted);flex-shrink:0;font-size:.75rem">${l}</span>
+      <div style="flex:1;background:var(--border);border-radius:2px;height:4px">
+        <div style="width:${w}%;background:${c};border-radius:2px;height:4px"></div></div>
+      <span style="color:${c};font-weight:700;width:16px;text-align:right;font-size:.8rem">${n}</span>
+    </div>`;
+  }).join('');
+
+  const top3 = opps.slice(0,3).map(d => {
+    const [color] = actionMeta[d.action] || ['var(--muted)'];
+    const short = d.path.replace(/^\/|\/$/g,'').slice(0,26);
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:.3rem 0;border-top:1px solid var(--border);font-size:.77rem;gap:.4rem">
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);flex:1" title="${d.path}">/${short}/</span>
+      <span style="color:${color};font-weight:700;flex-shrink:0">${d.opportunity}</span>
+      <button onclick="showOpportunities(getTabBtn('Muligheder'))" style="background:${color}22;color:${color};border:1px solid ${color}44;border-radius:4px;padding:.12rem .45rem;cursor:pointer;font-size:.71rem;flex-shrink:0">Fix</button>
+    </div>`;
+  }).join('');
+
+  const badge = `<span class="db-badge ok">${opps.length} sider</span>`;
+  el.innerHTML = `
+    <h3>Muligheder ${badge}</h3>
+    ${bars}
+    <div style="margin-top:.5rem">${top3}</div>
+    <button onclick="showOpportunities(getTabBtn('Muligheder'))" style="margin-top:.8rem;width:100%;background:transparent;border:1px solid var(--border);border-radius:6px;padding:.35rem;font-size:.76rem;color:var(--muted);cursor:pointer" onmouseover="this.style.color='var(--accent)';this.style.borderColor='var(--accent)'" onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border)'">Se alle muligheder →</button>`;
 }
 
 loadPosts();
