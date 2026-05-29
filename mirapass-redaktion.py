@@ -3691,6 +3691,111 @@ class Handler(BaseHTTPRequestHandler):
 
         parsed = urlparse(self.path)
         path   = parsed.path
+
+        # ── JSON POST endpoints (send their own headers) ──────────────────
+        if path in ("/api/gsc/404s", "/api/gsc/create-redirect"):
+            try:
+                import urllib.request as _ureq2, urllib.error as _uerr2
+                from urllib.parse import urlparse as _up2
+                length = int(self.headers.get("Content-Length", 0))
+                body   = self.rfile.read(length) if length else b"{}"
+                data   = json.loads(body)
+
+                if path == "/api/gsc/404s":
+                    urls = data.get("urls", [])
+
+                    wp_posts = []
+                    try:
+                        wp_posts = fetch_posts()
+                    except Exception:
+                        pass
+
+                    def _slug_words(s):
+                        return set(w for w in s.replace('-', ' ').split() if len(w) > 2)
+
+                    def _best_match(path_str):
+                        pw = _slug_words(path_str.strip('/'))
+                        if not pw:
+                            return None
+                        best, best_score = None, 0
+                        for p in wp_posts:
+                            score = len(pw & _slug_words(p.get('slug', '')))
+                            if score > best_score:
+                                best_score = score
+                                best = p
+                        if best and best_score > 0:
+                            return {"title": best['title'], "url": f"https://mirapass.dk/{best['slug']}/"}
+                        return None
+
+                    errors = []
+                    checked = 0
+                    for entry in urls[:80]:
+                        url_str      = entry if isinstance(entry, str) else entry.get('url', '')
+                        impressions  = entry.get('impressions', 0) if isinstance(entry, dict) else 0
+                        clicks       = entry.get('clicks', 0)      if isinstance(entry, dict) else 0
+                        if not url_str.startswith('https://mirapass.dk'):
+                            continue
+                        checked += 1
+                        status = None
+                        try:
+                            req = _ureq2.Request(url_str, headers={"User-Agent": "Mozilla/5.0"}, method="HEAD")
+                            with _ureq2.urlopen(req, timeout=6) as resp:
+                                status = resp.status
+                        except Exception as e:
+                            status = getattr(e, 'code', None)
+                        if status == 404:
+                            path_part  = _up2(url_str).path
+                            errors.append({
+                                "url": url_str,
+                                "status": 404,
+                                "impressions": impressions,
+                                "clicks": clicks,
+                                "suggestion": _best_match(path_part),
+                            })
+
+                    resp_body = json.dumps({"errors": errors, "checked": checked}, ensure_ascii=False).encode("utf-8")
+
+                else:  # /api/gsc/create-redirect
+                    import base64 as _b64
+                    from_url = data.get("from_url", "")
+                    to_url   = data.get("to_url", "")
+                    if not from_url.startswith("https://mirapass.dk") or not to_url:
+                        resp_body = json.dumps({"ok": False, "error": "Ugyldig URL"}).encode()
+                    else:
+                        from_path = _up2(from_url).path.rstrip('/')
+                        user, pw  = _auth()
+                        token     = _b64.b64encode(f"{user}:{pw}".encode()).decode()
+                        payload   = json.dumps({
+                            "url": from_path, "action_type": "url",
+                            "action_data": {"url": to_url},
+                            "match_type": "url", "group_id": 1,
+                            "status": "enabled", "regex": False,
+                        }).encode("utf-8")
+                        req = _ureq2.Request(
+                            "https://mirapass.dk/wp-json/redirection/v1/redirect",
+                            data=payload,
+                            headers={"Authorization": f"Basic {token}", "Content-Type": "application/json"},
+                            method="POST",
+                        )
+                        try:
+                            with _ureq2.urlopen(req, timeout=10) as r:
+                                rr = json.loads(r.read())
+                            resp_body = json.dumps({"ok": True, "id": rr.get("id")}).encode()
+                        except Exception as e2:
+                            resp_body = json.dumps({"ok": False, "error": f"Redirection-plugin ikke tilgængeligt: {e2}"}).encode()
+
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(resp_body)
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode())
+            return
+        # ─────────────────────────────────────────────────────────────────
+
         self._send_stream_headers()
 
         if path == "/api/seo/generate":
@@ -3712,129 +3817,6 @@ class Handler(BaseHTTPRequestHandler):
                 linking_build_stream(self.wfile, limit=limit)
             except Exception:
                 self._write("\nIntern fejl — se server-log\n")
-
-        elif path == "/api/gsc/404s":
-            try:
-                import urllib.request as _ureq2
-                from urllib.parse import urlparse as _up2
-                length = int(self.headers.get("Content-Length", 0))
-                body   = self.rfile.read(length) if length else b"{}"
-                data   = json.loads(body)
-                urls   = data.get("urls", [])
-
-                # Load WP posts for redirect suggestions
-                def _slug_words(s):
-                    return set(w for w in s.replace('-',' ').split() if len(w) > 2)
-
-                wp_posts = []
-                try:
-                    wp_posts = fetch_posts()
-                except Exception:
-                    pass
-
-                def _best_match(path_str):
-                    path_str = path_str.strip('/')
-                    pw = _slug_words(path_str)
-                    if not pw:
-                        return None
-                    best, best_score = None, 0
-                    for p in wp_posts:
-                        sw = _slug_words(p.get('slug',''))
-                        score = len(pw & sw)
-                        if score > best_score:
-                            best_score = score
-                            best = p
-                    if best and best_score > 0:
-                        return {"title": best['title'], "url": f"https://mirapass.dk/{best['slug']}/"}
-                    return None
-
-                # Build impressions map from cached GSC data if available
-                # (We pass impressions from JS; here we just check HTTP status)
-                errors = []
-                checked = 0
-                for entry in urls[:80]:  # cap at 80 to avoid long wait
-                    url_str = entry if isinstance(entry, str) else entry.get('url','')
-                    impressions = entry.get('impressions', 0) if isinstance(entry, dict) else 0
-                    clicks = entry.get('clicks', 0) if isinstance(entry, dict) else 0
-                    if not url_str.startswith('https://mirapass.dk'):
-                        continue
-                    checked += 1
-                    try:
-                        req = _ureq2.Request(url_str, headers={"User-Agent":"Mozilla/5.0"}, method="HEAD")
-                        with _ureq2.urlopen(req, timeout=6) as resp:
-                            status = resp.status
-                    except Exception as e:
-                        err_str = str(e)
-                        # urllib raises HTTPError for 4xx/5xx
-                        import urllib.error as _uerr
-                        if hasattr(e, 'code'):
-                            status = e.code
-                        else:
-                            continue
-                    if status == 404:
-                        path_part = _up2(url_str).path
-                        suggestion = _best_match(path_part)
-                        errors.append({
-                            "url": url_str,
-                            "status": status,
-                            "impressions": impressions,
-                            "clicks": clicks,
-                            "suggestion": suggestion,
-                        })
-
-                result = {"errors": errors, "checked": checked}
-                resp_body = json.dumps(result, ensure_ascii=False).encode("utf-8")
-                self.send_response(200); self.send_header("Content-Type","application/json; charset=utf-8"); self.end_headers(); self.wfile.write(resp_body)
-            except Exception as e:
-                self.send_response(500); self.send_header("Content-Type","application/json"); self.end_headers()
-                self.wfile.write(json.dumps({"error": str(e)}).encode())
-
-        elif path == "/api/gsc/create-redirect":
-            try:
-                import urllib.request as _ureq3, urllib.error as _uerr3, base64 as _b64
-                length = int(self.headers.get("Content-Length", 0))
-                body   = self.rfile.read(length) if length else b"{}"
-                data   = json.loads(body)
-                from_url = data.get("from_url", "")
-                to_url   = data.get("to_url", "")
-
-                if not from_url.startswith("https://mirapass.dk") or not to_url:
-                    resp_body = json.dumps({"ok": False, "error": "Ugyldig URL"}).encode()
-                    self.send_response(400); self.send_header("Content-Type","application/json"); self.end_headers(); self.wfile.write(resp_body)
-                else:
-                    from urllib.parse import urlparse as _up3
-                    from_path = _up3(from_url).path.rstrip('/')
-
-                    # Try Redirection plugin REST API (common WP plugin)
-                    user, pw = _auth()
-                    token = _b64.b64encode(f"{user}:{pw}".encode()).decode()
-                    redir_payload = json.dumps({
-                        "url": from_path,
-                        "action_type": "url",
-                        "action_data": {"url": to_url},
-                        "match_type": "url",
-                        "group_id": 1,
-                        "status": "enabled",
-                        "regex": False,
-                    }).encode("utf-8")
-                    req = _ureq3.Request(
-                        "https://mirapass.dk/wp-json/redirection/v1/redirect",
-                        data=redir_payload,
-                        headers={"Authorization": f"Basic {token}", "Content-Type": "application/json"},
-                        method="POST"
-                    )
-                    try:
-                        with _ureq3.urlopen(req, timeout=10) as resp:
-                            redir_resp = json.loads(resp.read())
-                        resp_body = json.dumps({"ok": True, "id": redir_resp.get("id")}).encode()
-                        self.send_response(200); self.send_header("Content-Type","application/json"); self.end_headers(); self.wfile.write(resp_body)
-                    except Exception as e2:
-                        # Plugin not available — return error so JS shows .htaccess fallback
-                        resp_body = json.dumps({"ok": False, "error": f"Redirection-plugin ikke tilgængeligt: {e2}"}).encode()
-                        self.send_response(200); self.send_header("Content-Type","application/json"); self.end_headers(); self.wfile.write(resp_body)
-            except Exception as e:
-                resp_body = json.dumps({"ok": False, "error": str(e)}).encode()
-                self.send_response(500); self.send_header("Content-Type","application/json"); self.end_headers(); self.wfile.write(resp_body)
 
         elif path == "/api/gsc/fix-ctr":
             try:
